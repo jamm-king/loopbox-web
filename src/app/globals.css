@@ -1,0 +1,126 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #355C7D;
+  /* Dark Blue as default text */
+
+  /* Palette */
+  --color-1: #F8B195;
+  /* Peach */
+  --color-2: #F67280;
+  /* Salmon */
+  --color-3: #C06C84;
+  /* Dark Pink */
+  --color-4: #6C5B7B;
+  /* Purple */
+  --color-5: #355C7D;
+  /* Dark Blue */
+
+  /* Semantic Mapping */
+  --primary: #355C7D;
+  --primary-foreground: #ffffff;
+
+  --secondary: #6C5B7B;
+  --secondary-foreground: #ffffff;
+
+  --accent: #f1f5f9;
+  --accent-foreground: #4c6f8d;
+
+  --destructive: #F67280;
+  --destructive-foreground: #ffffff;
+
+  --muted: #f1f5f9;
+  --muted-foreground: #69aee2;
+
+  --card: #ffffff;
+  --card-foreground: #355C7D;
+
+  --popover: #ffffff;
+  --popover-foreground: #355C7D;
+
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: #C06C84;
+
+  --radius: 0.5rem;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+
+  --font-sans: var(--font-poppins);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+
+    /* Adjust for dark mode if needed, or keep brand colors */
+    --primary: #F8B195;
+    /* Peach as primary in dark mode? Or keep Blue? Let's keep Blue but maybe lighter? */
+    /* Let's stick to the requested palette but maybe swap roles or keep as is. 
+       The user gave a specific palette. Let's try to maintain it.
+       Dark Blue on Black background might be low contrast.
+       Let's use Peach (#F8B195) as primary in dark mode for contrast.
+    */
+    --primary: #F8B195;
+    --primary-foreground: #355C7D;
+
+    --secondary: #C06C84;
+    --secondary-foreground: #ffffff;
+
+    --accent: #6C5B7B;
+    --accent-foreground: #ffffff;
+
+    --card: #171717;
+    --card-foreground: #ededed;
+
+    --popover: #171717;
+    --popover-foreground: #ededed;
+
+    --muted: #262626;
+    --muted-foreground: #a3a3a3;
+
+    --border: #262626;
+    --input: #262626;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
