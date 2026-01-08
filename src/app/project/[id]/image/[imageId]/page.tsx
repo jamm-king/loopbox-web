@@ -1,36 +1,36 @@
-import { musicApi } from "@/lib/api";
-import type { Music, MusicVersion } from "@/lib/api-types";
-import { GenerateVersionForm } from "@/components/generate-version-form";
+import { imageApi } from "@/lib/api";
+import type { Image, ImageVersion } from "@/lib/api-types";
+import { GenerateImageVersionForm } from "@/components/generate-image-version-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getStatusBadgeVariant } from "@/lib/status-badge";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
-interface MusicDetailPageProps {
+interface ImageDetailPageProps {
     params: Promise<{
         id: string;
-        musicId: string;
+        imageId: string;
     }>;
 }
 
-export default async function MusicDetailPage({ params }: MusicDetailPageProps) {
-    const { id: projectId, musicId } = await params;
+export default async function ImageDetailPage({ params }: ImageDetailPageProps) {
+    const { id: projectId, imageId } = await params;
 
-    let music: Music | null = null;
-    let versions: MusicVersion[] = [];
+    let image: Image | null = null;
+    let versions: ImageVersion[] = [];
     let errorMessage: string | null = null;
 
     try {
-        const response = await musicApi.get(projectId, musicId);
-        music = response.music;
+        const response = await imageApi.get(projectId, imageId);
+        image = response.image;
         versions = response.versions;
     } catch (e) {
-        console.error("Failed to fetch music details", e);
-        errorMessage = "Failed to load this music. Check the backend connection or ID.";
+        console.error("Failed to fetch image details", e);
+        errorMessage = "Failed to load this image. Check the backend connection or ID.";
     }
 
-    if (!music) {
+    if (!image) {
         return (
             <main className="flex min-h-screen flex-col p-8 md:p-24">
                 <div className="mb-8 space-y-4">
@@ -42,7 +42,7 @@ export default async function MusicDetailPage({ params }: MusicDetailPageProps) 
                         role="alert"
                         className="rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"
                     >
-                        {errorMessage ?? "Music not found."}
+                        {errorMessage ?? "Image not found."}
                     </div>
                 </div>
             </main>
@@ -58,11 +58,11 @@ export default async function MusicDetailPage({ params }: MusicDetailPageProps) 
                 </Link>
                 <div className="flex items-center justify-between">
                     <div className="space-y-1">
-                        <h1 className="text-4xl font-bold tracking-tight">Music Details</h1>
+                        <h1 className="text-4xl font-bold tracking-tight">Image Details</h1>
                         <div className="flex items-center gap-2 text-muted-foreground">
-                            <span>ID: {music.id}</span>
-                            <Badge variant={getStatusBadgeVariant(music.status)}>
-                                {music.status}
+                            <span>ID: {image.id}</span>
+                            <Badge variant={getStatusBadgeVariant(image.status)}>
+                                {image.status}
                             </Badge>
                         </div>
                     </div>
@@ -84,30 +84,28 @@ export default async function MusicDetailPage({ params }: MusicDetailPageProps) 
                                 <Card key={version.id}>
                                     <CardHeader>
                                         <CardTitle className="text-lg">Version {version.id}</CardTitle>
-                                        {(() => {
-                                            const uniqueTags = new Set<string>();
-                                            if (version.config.mood) uniqueTags.add(version.config.mood);
-                                            if (version.config.melody) uniqueTags.add(version.config.melody);
-                                            if (version.config.harmony) uniqueTags.add(version.config.harmony);
-                                            if (version.config.bass) uniqueTags.add(version.config.bass);
-                                            if (version.config.beat) uniqueTags.add(version.config.beat);
-
-                                            return (
-                                                <div className="flex flex-wrap gap-2">
-                                                    {Array.from(uniqueTags).map((tag) => (
-                                                        <Badge key={tag} variant="outline">{tag}</Badge>
-                                                    ))}
-                                                    {version.config.bpm && <Badge variant="outline">{version.config.bpm} BPM</Badge>}
-                                                </div>
-                                            );
-                                        })()}
+                                        <div className="flex flex-wrap gap-2">
+                                            {version.config.description && (
+                                                <Badge variant="outline">{version.config.description}</Badge>
+                                            )}
+                                            {version.config.width && <Badge variant="outline">{version.config.width}px</Badge>}
+                                            {version.config.height && <Badge variant="outline">{version.config.height}px</Badge>}
+                                        </div>
                                     </CardHeader>
-                                    <CardContent>
+                                    <CardContent className="space-y-3">
+                                        {version.url ? (
+                                            <div className="overflow-hidden rounded-md border">
+                                                <img
+                                                    src={version.url}
+                                                    alt={`Version ${version.id}`}
+                                                    className="h-auto w-full object-cover"
+                                                />
+                                            </div>
+                                        ) : null}
                                         {version.fileId ? (
-                                            <audio controls className="w-full">
-                                                <source src={musicApi.getAudioUrl(musicId, version.id)} type="audio/mpeg" />
-                                                Your browser does not support the audio element.
-                                            </audio>
+                                            <div className="text-sm text-muted-foreground">
+                                                File ID: {version.fileId}
+                                            </div>
                                         ) : (
                                             <div className="text-sm text-muted-foreground">Processing...</div>
                                         )}
@@ -119,10 +117,10 @@ export default async function MusicDetailPage({ params }: MusicDetailPageProps) 
                 </div>
 
                 <div className="sticky top-8 self-start">
-                    <GenerateVersionForm
+                    <GenerateImageVersionForm
                         projectId={projectId}
-                        musicId={musicId}
-                        isMusicGenerating={music.status === 'GENERATING'}
+                        imageId={imageId}
+                        isImageGenerating={image.status === "GENERATING"}
                     />
                 </div>
             </div>

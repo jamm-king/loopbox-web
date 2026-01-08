@@ -71,3 +71,49 @@ export interface GenerateVersionResponse {
 export interface DeleteVersionResponse {
     music: Music;
 }
+
+export interface ImageConfig {
+    description?: string;
+    width?: number;
+    height?: number;
+}
+
+export interface ImageVersion {
+    id: string;
+    fileId?: string;
+    url?: string;
+    config: ImageConfig;
+}
+
+export interface Image {
+    id: string;
+    status: string;
+}
+
+export interface CreateImageResponse {
+    image: Image;
+}
+
+export interface GetImageResponse {
+    image: Image;
+    versions: ImageVersion[];
+}
+
+export interface GetImageListResponse {
+    images: Image[];
+}
+
+export interface GenerateImageVersionRequest {
+    provider: string;
+    description?: string;
+    width?: number;
+    height?: number;
+}
+
+export interface GenerateImageVersionResponse {
+    image: Image;
+}
+
+export interface DeleteImageVersionResponse {
+    image: Image;
+}
