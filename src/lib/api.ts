@@ -1,12 +1,18 @@
 import axios from 'axios';
 import {
+    CreateImageResponse,
     CreateMusicResponse,
     CreateProjectRequest,
     CreateProjectResponse,
+    DeleteImageVersionResponse,
     DeleteVersionResponse,
+    GenerateImageVersionRequest,
+    GenerateImageVersionResponse,
     GenerateVersionRequest,
     GenerateVersionResponse,
     GetAllProjectResponse,
+    GetImageListResponse,
+    GetImageResponse,
     GetMusicListResponse,
     GetMusicResponse,
     GetProjectResponse,
@@ -82,5 +88,44 @@ export const musicApi = {
     },
     getAudioUrl: (musicId: string, versionId: string): string => {
         return `${API_BASE_URL}/music/${musicId}/versions/${versionId}/audio`;
+    },
+};
+
+export const imageApi = {
+    create: async (projectId: string): Promise<CreateImageResponse> => {
+        const response = await api.post(`/project/${projectId}/image/create`);
+        return response.data;
+    },
+    get: async (projectId: string, imageId: string): Promise<GetImageResponse> => {
+        const response = await api.get(`/project/${projectId}/image/${imageId}`);
+        return response.data;
+    },
+    getList: async (projectId: string): Promise<GetImageListResponse> => {
+        const response = await api.get(`/project/${projectId}/image`);
+        return response.data;
+    },
+    delete: async (projectId: string, imageId: string): Promise<void> => {
+        await api.delete(`/project/${projectId}/image/${imageId}`);
+    },
+    generateVersion: async (
+        projectId: string,
+        imageId: string,
+        data: GenerateImageVersionRequest
+    ): Promise<GenerateImageVersionResponse> => {
+        const response = await api.post(
+            `/project/${projectId}/image/${imageId}/version/generate`,
+            data
+        );
+        return response.data;
+    },
+    deleteVersion: async (
+        projectId: string,
+        imageId: string,
+        versionId: string
+    ): Promise<DeleteImageVersionResponse> => {
+        const response = await api.delete(
+            `/project/${projectId}/image/${imageId}/version/${versionId}`
+        );
+        return response.data;
     },
 };

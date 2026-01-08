@@ -1,6 +1,7 @@
-import { projectApi, musicApi } from "@/lib/api";
-import type { Music, Project } from "@/lib/api-types";
+import { projectApi, musicApi, imageApi } from "@/lib/api";
+import type { Image, Music, Project } from "@/lib/api-types";
 import { MusicList } from "@/components/music-list";
+import { ImageList } from "@/components/image-list";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -16,11 +17,13 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
 
     let project: Project | null = null;
     let musicList: Music[] = [];
+    let images: Image[] = [];
     let errorMessage: string | null = null;
 
     try {
         project = (await projectApi.get(id)).project;
         musicList = (await musicApi.getList(id)).musicList;
+        images = (await imageApi.getList(id)).images;
     } catch (e) {
         console.error("Failed to fetch project details", e);
         errorMessage = "Failed to load this project. Check the backend connection or ID.";
@@ -65,7 +68,10 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                 </div>
             </div>
 
-            <MusicList projectId={id} musicList={musicList} />
+            <div className="space-y-10">
+                <MusicList projectId={id} musicList={musicList} />
+                <ImageList projectId={id} images={images} />
+            </div>
         </main>
     );
 }

@@ -9,13 +9,15 @@ import {
     Folder,
     Music as MusicIcon,
     FileAudio,
+    Image as ImageIcon,
+    FileImage,
     Loader2,
     Plus,
     RefreshCw
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { projectApi, musicApi } from "@/lib/api";
-import { Project, Music } from "@/lib/api-types";
+import { projectApi, musicApi, imageApi } from "@/lib/api";
+import { Project, Music, Image } from "@/lib/api-types";
 type SidebarProps = HTMLAttributes<HTMLDivElement>;
 
 export function Sidebar({ className }: SidebarProps) {
@@ -27,15 +29,25 @@ export function Sidebar({ className }: SidebarProps) {
     const [projectMusic, setProjectMusic] = useState<Record<string, Music[]>>({});
     const [loadingMusic, setLoadingMusic] = useState<Set<string>>(new Set());
 
+    // Project ID -> Image List
+    const [projectImages, setProjectImages] = useState<Record<string, Image[]>>({});
+    const [loadingImages, setLoadingImages] = useState<Set<string>>(new Set());
+
     // Music ID -> Music Details (reconstructed)
     const [musicDetails, setMusicDetails] = useState<Record<string, Music & { versions: import("@/lib/api-types").MusicVersion[] }>>({});
     const [loadingVersions, setLoadingVersions] = useState<Set<string>>(new Set());
 
+    // Image ID -> Image Details (reconstructed)
+    const [imageDetails, setImageDetails] = useState<Record<string, Image & { versions: import("@/lib/api-types").ImageVersion[] }>>({});
+    const [loadingImageVersions, setLoadingImageVersions] = useState<Set<string>>(new Set());
+
     const [expandedMusic, setExpandedMusic] = useState<Set<string>>(new Set());
+    const [expandedImages, setExpandedImages] = useState<Set<string>>(new Set());
     const [loadingProjects, setLoadingProjects] = useState(true);
 
     const expandedProjectsRef = useRef(expandedProjects);
     const expandedMusicRef = useRef(expandedMusic);
+    const expandedImagesRef = useRef(expandedImages);
 
     // Update refs whenever state changes
     useEffect(() => {
@@ -45,6 +57,10 @@ export function Sidebar({ className }: SidebarProps) {
     useEffect(() => {
         expandedMusicRef.current = expandedMusic;
     }, [expandedMusic]);
+
+    useEffect(() => {
+        expandedImagesRef.current = expandedImages;
+    }, [expandedImages]);
 
     const refreshSidebar = useCallback(async () => {
         // 1. Always fetch projects to show new ones
@@ -65,7 +81,10 @@ export function Sidebar({ className }: SidebarProps) {
         const musicMatch = pathname.match(/\/music\/([^\/]+)/);
         const musicId = musicMatch ? musicMatch[1] : null;
 
-        // 2. Refresh active project's music if expanded
+        const imageMatch = pathname.match(/\/image\/([^\/]+)/);
+        const imageId = imageMatch ? imageMatch[1] : null;
+
+        // 2. Refresh active project's items if expanded
         if (projectId && projectId !== 'new' && expandedProjectsRef.current.has(projectId)) {
             try {
                 const response = await musicApi.getList(projectId);
@@ -75,6 +94,16 @@ export function Sidebar({ className }: SidebarProps) {
                 }));
             } catch (error) {
                 console.error("Failed to fetch music list for active project:", error);
+            }
+
+            try {
+                const response = await imageApi.getList(projectId);
+                setProjectImages(prev => ({
+                    ...prev,
+                    [projectId]: response.images
+                }));
+            } catch (error) {
+                console.error("Failed to fetch image list for active project:", error);
             }
         }
 
@@ -88,6 +117,19 @@ export function Sidebar({ className }: SidebarProps) {
                 }));
             } catch (error) {
                 console.error("Failed to fetch music details for active music:", error);
+            }
+        }
+
+        // 4. Refresh active image details if expanded
+        if (projectId && projectId !== 'new' && imageId && imageId !== 'new' && expandedImagesRef.current.has(imageId)) {
+            try {
+                const response = await imageApi.get(projectId, imageId);
+                setImageDetails(prev => ({
+                    ...prev,
+                    [imageId]: { ...response.image, versions: response.versions }
+                }));
+            } catch (error) {
+                console.error("Failed to fetch image details for active image:", error);
             }
         }
     }, [pathname]);
@@ -115,6 +157,13 @@ export function Sidebar({ className }: SidebarProps) {
                     return next;
                 });
             }
+            if (projectImages[projectId]) {
+                setExpandedImages(prev => {
+                    const next = new Set(prev);
+                    projectImages[projectId].forEach(image => next.delete(image.id));
+                    return next;
+                });
+            }
         } else {
             newExpanded.add(projectId);
             // Fetch music if not already loaded
@@ -130,6 +179,25 @@ export function Sidebar({ className }: SidebarProps) {
                     console.error("Failed to fetch music list:", error);
                 } finally {
                     setLoadingMusic(prev => {
+                        const next = new Set(prev);
+                        next.delete(projectId);
+                        return next;
+                    });
+                }
+            }
+            // Fetch images if not already loaded
+            if (!projectImages[projectId]) {
+                setLoadingImages(prev => new Set(prev).add(projectId));
+                try {
+                    const response = await imageApi.getList(projectId);
+                    setProjectImages(prev => ({
+                        ...prev,
+                        [projectId]: response.images
+                    }));
+                } catch (error) {
+                    console.error("Failed to fetch image list:", error);
+                } finally {
+                    setLoadingImages(prev => {
                         const next = new Set(prev);
                         next.delete(projectId);
                         return next;
@@ -167,6 +235,34 @@ export function Sidebar({ className }: SidebarProps) {
             }
         }
         setExpandedMusic(newExpanded);
+    };
+
+    const toggleImage = async (projectId: string, imageId: string) => {
+        const newExpanded = new Set(expandedImages);
+        if (newExpanded.has(imageId)) {
+            newExpanded.delete(imageId);
+        } else {
+            newExpanded.add(imageId);
+            if (!imageDetails[imageId]) {
+                setLoadingImageVersions(prev => new Set(prev).add(imageId));
+                try {
+                    const response = await imageApi.get(projectId, imageId);
+                    setImageDetails(prev => ({
+                        ...prev,
+                        [imageId]: { ...response.image, versions: response.versions }
+                    }));
+                } catch (error) {
+                    console.error("Failed to fetch image details:", error);
+                } finally {
+                    setLoadingImageVersions(prev => {
+                        const next = new Set(prev);
+                        next.delete(imageId);
+                        return next;
+                    });
+                }
+            }
+        }
+        setExpandedImages(newExpanded);
     };
 
     return (
@@ -244,6 +340,9 @@ export function Sidebar({ className }: SidebarProps) {
 
                                         {expandedProjects.has(project.id) && (
                                             <div className="ml-4 border-l border-border pl-2">
+                                                <div className="py-1 pl-4 text-[10px] uppercase tracking-wide text-muted-foreground">
+                                                    Music
+                                                </div>
                                                 {loadingMusic.has(project.id) ? (
                                                     <div className="py-2 pl-4">
                                                         <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
@@ -305,6 +404,82 @@ export function Sidebar({ className }: SidebarProps) {
                                                                                 )}
                                                                             >
                                                                                 <FileAudio className="h-3.5 w-3.5 text-green-500" />
+                                                                                <span className="truncate text-xs">
+                                                                                    {version.id.slice(0, 8)}
+                                                                                </span>
+                                                                            </Link>
+                                                                        ))
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    ))
+                                                )}
+
+                                                <div className="py-2 pl-4 text-[10px] uppercase tracking-wide text-muted-foreground">
+                                                    Images
+                                                </div>
+                                                {loadingImages.has(project.id) ? (
+                                                    <div className="py-2 pl-4">
+                                                        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                                                    </div>
+                                                ) : projectImages[project.id]?.length === 0 ? (
+                                                    <div className="py-1 pl-6 text-xs text-muted-foreground">
+                                                        No images
+                                                    </div>
+                                                ) : (
+                                                    projectImages[project.id]?.map((image) => (
+                                                        <div key={image.id}>
+                                                            <div
+                                                                className={cn(
+                                                                    "group flex items-center rounded-sm text-sm hover:bg-accent hover:text-accent-foreground",
+                                                                    pathname === `/project/${project.id}/image/${image.id}` && "bg-accent text-accent-foreground"
+                                                                )}
+                                                            >
+                                                                <div
+                                                                    className="p-1.5 hover:bg-muted-foreground/10 rounded-sm cursor-pointer"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        toggleImage(project.id, image.id);
+                                                                    }}
+                                                                >
+                                                                    {expandedImages.has(image.id) ? (
+                                                                        <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                                                                    ) : (
+                                                                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                                                                    )}
+                                                                </div>
+                                                                <Link
+                                                                    href={`/project/${project.id}/image/${image.id}`}
+                                                                    className="flex-1 flex items-center gap-2 py-1.5 pr-2 overflow-hidden"
+                                                                >
+                                                                    <ImageIcon className="h-4 w-4 text-orange-500 shrink-0" />
+                                                                    <span className="truncate">
+                                                                        {image.id.slice(0, 8)}
+                                                                    </span>
+                                                                </Link>
+                                                            </div>
+
+                                                            {expandedImages.has(image.id) && (
+                                                                <div className="ml-4 border-l border-border pl-2">
+                                                                    {loadingImageVersions.has(image.id) ? (
+                                                                        <div className="py-2 pl-4">
+                                                                            <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                                                                        </div>
+                                                                    ) : imageDetails[image.id]?.versions?.length === 0 ? (
+                                                                        <div className="py-1 pl-6 text-xs text-muted-foreground">
+                                                                            No versions
+                                                                        </div>
+                                                                    ) : (
+                                                                        imageDetails[image.id]?.versions?.map((version) => (
+                                                                            <Link
+                                                                                key={version.id}
+                                                                                href={`/project/${project.id}/image/${image.id}`}
+                                                                                className={cn(
+                                                                                    "group flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground pl-6",
+                                                                                )}
+                                                                            >
+                                                                                <FileImage className="h-3.5 w-3.5 text-amber-500" />
                                                                                 <span className="truncate text-xs">
                                                                                     {version.id.slice(0, 8)}
                                                                                 </span>
