@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/lib/toast";
 import { buildProjectUpdateRequest } from "@/lib/project-update";
+import { clearDragPayload, setDragPayload } from "@/lib/drag-payload";
 type SidebarProps = HTMLAttributes<HTMLDivElement>;
 
 const dragMimeType = "application/x-loopbox";
@@ -367,6 +368,7 @@ export function Sidebar({ className }: SidebarProps) {
         event.stopPropagation();
         event.dataTransfer.setData(dragMimeType, JSON.stringify(payload));
         event.dataTransfer.setData("text/plain", `${payload.type}:${payload.id}`);
+        setDragPayload(payload);
         event.dataTransfer.effectAllowed = "copy";
     };
 
@@ -628,6 +630,7 @@ export function Sidebar({ className }: SidebarProps) {
                                                                                         id: version.id,
                                                                                     })
                                                                                 }
+                                                                                onDragEnd={clearDragPayload}
                                                                             >
                                                                                 <FileAudio className="h-3.5 w-3.5 text-green-500" />
                                                                                 <span className="truncate text-xs">
@@ -711,6 +714,7 @@ export function Sidebar({ className }: SidebarProps) {
                                                                                         id: version.id,
                                                                                     })
                                                                                 }
+                                                                                onDragEnd={clearDragPayload}
                                                                             >
                                                                                 <FileImage className="h-3.5 w-3.5 text-amber-500" />
                                                                                 <span className="truncate text-xs">

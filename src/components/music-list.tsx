@@ -12,6 +12,7 @@ import Link from "next/link";
 import { musicApi } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { getMusicDisplayName } from "@/lib/music-display";
+import { clearDragPayload, setDragPayload } from "@/lib/drag-payload";
 import { toast } from "@/lib/toast";
 
 interface MusicListProps {
@@ -32,6 +33,7 @@ export function MusicList({ projectId, musicList }: MusicListProps) {
         event.stopPropagation();
         event.dataTransfer.setData("application/x-loopbox", JSON.stringify({ type: "music-version", id: versionId }));
         event.dataTransfer.setData("text/plain", `music-version:${versionId}`);
+        setDragPayload({ type: "music-version", id: versionId });
         event.dataTransfer.effectAllowed = "copy";
     };
 
@@ -238,6 +240,7 @@ export function MusicList({ projectId, musicList }: MusicListProps) {
                                                         className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-xs"
                                                         draggable
                                                         onDragStart={(event) => handleDragStart(event, version.id)}
+                                                        onDragEnd={clearDragPayload}
                                                     >
                                                         <div className="text-muted-foreground">
                                                             Version {version.id.slice(0, 8)}

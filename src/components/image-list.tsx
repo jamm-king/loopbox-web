@@ -11,6 +11,7 @@ import Link from "next/link";
 import { imageApi } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { toast } from "@/lib/toast";
+import { clearDragPayload, setDragPayload } from "@/lib/drag-payload";
 
 interface ImageListProps {
     projectId: string;
@@ -27,6 +28,7 @@ export function ImageList({ projectId, images }: ImageListProps) {
         event.stopPropagation();
         event.dataTransfer.setData("application/x-loopbox", JSON.stringify({ type: "image-version", id: versionId }));
         event.dataTransfer.setData("text/plain", `image-version:${versionId}`);
+        setDragPayload({ type: "image-version", id: versionId });
         event.dataTransfer.effectAllowed = "copy";
     };
 
@@ -145,6 +147,7 @@ export function ImageList({ projectId, images }: ImageListProps) {
                                                         className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-xs"
                                                         draggable
                                                         onDragStart={(event) => handleDragStart(event, version.id)}
+                                                        onDragEnd={clearDragPayload}
                                                     >
                                                         <div className="text-muted-foreground">
                                                             Version {version.id.slice(0, 8)}

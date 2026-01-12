@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { videoApi, musicApi, imageApi } from "@/lib/api";
 import type { Image, ImageVersion, Music, MusicVersion, Video } from "@/lib/api-types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,13 @@ import {
     getImageGroupStartSeconds,
     getTotalDurationSeconds,
 } from "@/lib/video-timeline";
+import {
+    getInsertIndexByTime,
+    getInsertOffsetPercent,
+    mergeImageGroupsOnInsert,
+    parseDragDataTransfer,
+} from "@/lib/video-drop";
+import { getDragPayload } from "@/lib/drag-payload";
 import { Check, Loader2, Plus, Trash2, ArrowUp, ArrowDown } from "lucide-react";
 
 type MusicVersionItem = MusicVersion & { musicId: string; musicAlias?: string | null };
@@ -34,6 +41,11 @@ interface DraftImageGroup {
     segmentIndexEnd: number;
 }
 
+type DropPreview =
+    | { target: "music-timeline"; index: number; itemType: "music"; versionId: string }
+    | { target: "image-timeline"; index: number; itemType: "image"; versionId: string }
+    | { target: "segments-list"; index: number; itemType: "music"; versionId: string };
+
 const dragMimeType = "application/x-loopbox";
 
 const formatDuration = (seconds: number) => {
@@ -43,25 +55,8 @@ const formatDuration = (seconds: number) => {
     return `${mins}:${secs.toString().padStart(2, "0")}`;
 };
 
-const parseDragPayload = (event: React.DragEvent) => {
-    const payload = event.dataTransfer.getData(dragMimeType);
-    if (payload) {
-        try {
-            return JSON.parse(payload) as { type: string; id: string };
-        } catch {
-            return null;
-        }
-    }
-    const fallback = event.dataTransfer.getData("text/plain");
-    if (!fallback) {
-        return null;
-    }
-    const [type, id] = fallback.split(":");
-    if (!type || !id) {
-        return null;
-    }
-    return { type, id };
-};
+const parseDragPayload = (event: React.DragEvent) =>
+    parseDragDataTransfer(event.dataTransfer, dragMimeType);
 
 export function VideoEditor({ projectId }: VideoEditorProps) {
     const [isLoading, setIsLoading] = useState(true);
@@ -77,8 +72,10 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
     const [groupStartIndex, setGroupStartIndex] = useState("");
     const [groupEndIndex, setGroupEndIndex] = useState("");
     const [dropHint, setDropHint] = useState<string | null>(null);
+    const [dropPreview, setDropPreview] = useState<DropPreview | null>(null);
     const musicTimelineRef = useRef<HTMLDivElement | null>(null);
     const imageTimelineRef = useRef<HTMLDivElement | null>(null);
+    const segmentsListRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
         let isMounted = true;
@@ -161,6 +158,14 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
         () => getTotalDurationSeconds(segments),
         [segments]
     );
+    const previewListVersion =
+        dropPreview?.target === "segments-list"
+            ? musicVersions.find((item) => item.id === dropPreview.versionId)
+            : null;
+    const previewListName = previewListVersion?.musicAlias?.trim()
+        ? previewListVersion.musicAlias
+        : previewListVersion?.musicId ?? dropPreview?.versionId ?? "";
+    const previewListDuration = previewListVersion?.durationSeconds ?? 0;
 
     const isRangeAvailable = (start: number, end: number) =>
         !imageGroups.some(
@@ -178,14 +183,27 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
             return segments.length;
         }
         const target = (x / rect.width) * totalDuration;
-        let cursor = 0;
-        for (let i = 0; i < segments.length; i += 1) {
-            cursor += segments[i].durationSeconds || 0;
-            if (target <= cursor) {
+        return getInsertIndexByTime(segments, target);
+    };
+
+    const getListInsertIndexByPosition = (event: React.DragEvent, container: HTMLDivElement | null) => {
+        if (!container) {
+            return segments.length;
+        }
+        const rows = Array.from(
+            container.querySelectorAll("[data-segment-row='true']")
+        ) as HTMLElement[];
+        if (rows.length === 0) {
+            return 0;
+        }
+        for (let i = 0; i < rows.length; i += 1) {
+            const rect = rows[i].getBoundingClientRect();
+            const midpoint = rect.top + rect.height / 2;
+            if (event.clientY < midpoint) {
                 return i;
             }
         }
-        return segments.length;
+        return rows.length;
     };
 
     const handleAddSegment = () => {
@@ -275,13 +293,34 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
         ]);
     };
 
-    const addImageGroupForSegment = (versionId: string, segmentIndex: number) =>
-        addImageGroupRange(versionId, segmentIndex, segmentIndex);
+    const addImageGroupForSegment = (versionId: string, segmentIndex: number) => {
+        const version = imageVersions.find((item) => item.id === versionId);
+        if (!version) {
+            toast("Image version not found", "error");
+            return;
+        }
+        setImageGroups((prev) => {
+            const result = mergeImageGroupsOnInsert(
+                prev,
+                segmentIndex,
+                version.id,
+                version.imageId,
+                segments.length
+            );
+            if (result.error) {
+                toast(result.error, "error");
+                return prev;
+            }
+            return result.groups;
+        });
+    };
 
     const handleDropMusic = (event: React.DragEvent, insertIndex: number) => {
         event.preventDefault();
+        event.stopPropagation();
         setDropHint(null);
-        const payload = parseDragPayload(event);
+        setDropPreview(null);
+        const payload = parseDragPayload(event) ?? getDragPayload();
         if (!payload || payload.type !== "music-version") {
             return;
         }
@@ -290,8 +329,10 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
 
     const handleDropImage = (event: React.DragEvent, segmentIndex: number) => {
         event.preventDefault();
+        event.stopPropagation();
         setDropHint(null);
-        const payload = parseDragPayload(event);
+        setDropPreview(null);
+        const payload = parseDragPayload(event) ?? getDragPayload();
         if (!payload || payload.type !== "image-version") {
             return;
         }
@@ -300,8 +341,10 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
 
     const handleDropOnSegmentRow = (event: React.DragEvent, index: number) => {
         event.preventDefault();
+        event.stopPropagation();
         setDropHint(null);
-        const payload = parseDragPayload(event);
+        setDropPreview(null);
+        const payload = parseDragPayload(event) ?? getDragPayload();
         if (!payload) {
             return;
         }
@@ -405,22 +448,75 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
             );
         }
 
+        const previewMusicVersion =
+            dropPreview?.target === "music-timeline"
+                ? musicVersions.find((item) => item.id === dropPreview.versionId)
+                : null;
+        const previewMusicDuration = previewMusicVersion?.durationSeconds ?? 0;
+        const previewMusicTotal = totalDuration + previewMusicDuration;
+        const musicPreviewLeft =
+            dropPreview?.target === "music-timeline"
+                ? getInsertOffsetPercent(segments, previewMusicTotal, dropPreview.index)
+                : null;
+        const musicPreviewWidth =
+            dropPreview?.target === "music-timeline" && previewMusicTotal > 0
+                ? Math.max(4, (previewMusicDuration / previewMusicTotal) * 100)
+                : 0;
+
+        const imagePreviewLeft =
+            dropPreview?.target === "image-timeline"
+                ? getInsertOffsetPercent(segments, totalDuration, dropPreview.index)
+                : null;
+        const imagePreviewDuration =
+            dropPreview?.target === "image-timeline"
+                ? segments[dropPreview.index]?.durationSeconds ?? 0
+                : 0;
+        const imagePreviewWidth =
+            dropPreview?.target === "image-timeline" && totalDuration > 0
+                ? Math.max(4, (imagePreviewDuration / totalDuration) * 100)
+                : 0;
+
         return (
             <div className="space-y-4">
                 <div
                     ref={musicTimelineRef}
-                    className={`flex h-10 w-full overflow-hidden rounded-md border border-border ${
+                    className={`relative flex h-10 w-full overflow-hidden rounded-md border border-border ${
                         dropHint === "music-timeline" ? "ring-2 ring-primary/40" : ""
                     }`}
                     onDragOver={(event) => {
                         event.preventDefault();
+                        const payload = parseDragPayload(event) ?? getDragPayload();
+                        if (!payload || payload.type !== "music-version") {
+                            setDropHint(null);
+                            setDropPreview(null);
+                            return;
+                        }
                         setDropHint("music-timeline");
+                        const insertIndex = getInsertIndexByPosition(event, musicTimelineRef.current);
+                        setDropPreview({
+                            target: "music-timeline",
+                            index: insertIndex,
+                            itemType: "music",
+                            versionId: payload.id,
+                        });
                     }}
-                    onDragLeave={() => setDropHint(null)}
+                    onDragLeave={() => {
+                        setDropHint(null);
+                        setDropPreview(null);
+                    }}
                     onDrop={(event) =>
                         handleDropMusic(event, getInsertIndexByPosition(event, musicTimelineRef.current))
                     }
                 >
+                    {dropPreview?.target === "music-timeline" && (
+                        <div
+                            className="pointer-events-none absolute top-0 h-full rounded-md border border-primary/40 bg-primary/20"
+                            style={{
+                                left: `${musicPreviewLeft ?? 0}%`,
+                                width: `${musicPreviewWidth}%`,
+                            }}
+                        />
+                    )}
                     {segments.map((segment, index) => {
                         const width = Math.max(4, (segment.durationSeconds / totalDuration) * 100);
                         const label = musicVersions.find((item) => item.id === segment.musicVersionId);
@@ -447,9 +543,31 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
                     }`}
                     onDragOver={(event) => {
                         event.preventDefault();
+                        if (segments.length === 0) {
+                            setDropHint(null);
+                            setDropPreview(null);
+                            return;
+                        }
+                        const payload = parseDragPayload(event) ?? getDragPayload();
+                        if (!payload || payload.type !== "image-version") {
+                            setDropHint(null);
+                            setDropPreview(null);
+                            return;
+                        }
                         setDropHint("image-timeline");
+                        const insertIndex = getInsertIndexByPosition(event, imageTimelineRef.current);
+                        const clampedIndex = Math.min(insertIndex, segments.length - 1);
+                        setDropPreview({
+                            target: "image-timeline",
+                            index: clampedIndex,
+                            itemType: "image",
+                            versionId: payload.id,
+                        });
                     }}
-                    onDragLeave={() => setDropHint(null)}
+                    onDragLeave={() => {
+                        setDropHint(null);
+                        setDropPreview(null);
+                    }}
                     onDrop={(event) => {
                         if (segments.length === 0) {
                             toast("Add music segments first", "error");
@@ -459,6 +577,15 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
                         handleDropImage(event, Math.min(index, segments.length - 1));
                     }}
                 >
+                    {dropPreview?.target === "image-timeline" && segments.length > 0 && (
+                        <div
+                            className="pointer-events-none absolute top-0 h-full rounded-md border border-amber-400/60 bg-amber-300/30"
+                            style={{
+                                left: `${imagePreviewLeft ?? 0}%`,
+                                width: `${imagePreviewWidth}%`,
+                            }}
+                        />
+                    )}
                     {imageGroups.map((group, index) => {
                         const duration = getImageGroupDurationSeconds(group, segments);
                         const start = getImageGroupStartSeconds(group, segments);
@@ -515,9 +642,24 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
                                         className="flex items-center gap-2"
                                         onDragOver={(event) => {
                                             event.preventDefault();
+                                            const payload = parseDragPayload(event) ?? getDragPayload();
+                                            if (!payload || payload.type !== "music-version") {
+                                                setDropHint(null);
+                                                setDropPreview(null);
+                                                return;
+                                            }
                                             setDropHint("segments-list");
+                                            setDropPreview({
+                                                target: "segments-list",
+                                                index: segments.length,
+                                                itemType: "music",
+                                                versionId: payload.id,
+                                            });
                                         }}
-                                        onDragLeave={() => setDropHint(null)}
+                                        onDragLeave={() => {
+                                            setDropHint(null);
+                                            setDropPreview(null);
+                                        }}
                                         onDrop={(event) => handleDropMusic(event, segments.length)}
                                     >
                                         <Select value={selectedMusicVersionId} onValueChange={setSelectedMusicVersionId}>
@@ -545,61 +687,178 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
                                         className="rounded-md border border-dashed border-border p-4 text-sm text-muted-foreground"
                                         onDragOver={(event) => {
                                             event.preventDefault();
+                                            const payload = parseDragPayload(event) ?? getDragPayload();
+                                            if (!payload || payload.type !== "music-version") {
+                                                setDropHint(null);
+                                                setDropPreview(null);
+                                                return;
+                                            }
                                             setDropHint("segments-list");
+                                            setDropPreview({
+                                                target: "segments-list",
+                                                index: 0,
+                                                itemType: "music",
+                                                versionId: payload.id,
+                                            });
                                         }}
-                                        onDragLeave={() => setDropHint(null)}
-                                        onDrop={(event) => handleDropMusic(event, segments.length)}
+                                        onDragLeave={() => {
+                                            setDropHint(null);
+                                            setDropPreview(null);
+                                        }}
+                                        onDrop={(event) => {
+                                            const payload = parseDragPayload(event) ?? getDragPayload();
+                                            if (!payload) {
+                                                return;
+                                            }
+                                            if (payload.type === "music-version") {
+                                                handleDropMusic(event, 0);
+                                                return;
+                                            }
+                                            if (payload.type === "image-version") {
+                                                toast("Add a music segment first", "error");
+                                            }
+                                        }}
                                     >
                                         No segments yet.
                                     </div>
                                 ) : (
-                                    <div className="space-y-2">
+                                    <div
+                                        ref={segmentsListRef}
+                                        className="space-y-2"
+                                        onDragOver={(event) => {
+                                            event.preventDefault();
+                                            const payload = parseDragPayload(event) ?? getDragPayload();
+                                            if (!payload || payload.type !== "music-version") {
+                                                setDropHint(null);
+                                                setDropPreview(null);
+                                                return;
+                                            }
+                                            setDropHint("segments-list");
+                                            const insertIndex = getListInsertIndexByPosition(
+                                                event,
+                                                segmentsListRef.current
+                                            );
+                                            setDropPreview({
+                                                target: "segments-list",
+                                                index: insertIndex,
+                                                itemType: "music",
+                                                versionId: payload.id,
+                                            });
+                                        }}
+                                        onDragLeave={() => {
+                                            setDropHint(null);
+                                            setDropPreview(null);
+                                        }}
+                                        onDrop={(event) => {
+                                            const payload = parseDragPayload(event) ?? getDragPayload();
+                                            if (!payload) {
+                                                return;
+                                            }
+                                            const insertIndex = getListInsertIndexByPosition(
+                                                event,
+                                                segmentsListRef.current
+                                            );
+                                            if (payload.type === "music-version") {
+                                                handleDropMusic(event, insertIndex);
+                                                return;
+                                            }
+                                            if (payload.type === "image-version") {
+                                                const targetIndex = Math.min(insertIndex, segments.length - 1);
+                                                handleDropImage(event, targetIndex);
+                                            }
+                                        }}
+                                    >
                                         {segments.map((segment, index) => (
-                                            <div
-                                                key={`${segment.musicVersionId}-${index}`}
-                                                className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm"
-                                                onDragOver={(event) => {
-                                                    event.preventDefault();
-                                                    setDropHint("segment-row");
-                                                }}
-                                                onDragLeave={() => setDropHint(null)}
-                                                onDrop={(event) => handleDropOnSegmentRow(event, index)}
-                                            >
-                                                <div className="space-y-1">
-                                                    <div className="font-medium">
-                                                        Segment {index + 1}
+                                            <Fragment key={`${segment.musicVersionId}-${index}`}>
+                                                {dropPreview?.target === "segments-list" &&
+                                                    dropPreview.index === index &&
+                                                    previewListVersion && (
+                                                        <div className="flex items-center justify-between rounded-md border border-dashed border-primary/40 bg-primary/10 px-3 py-2 text-sm text-muted-foreground opacity-70">
+                                                            <div className="space-y-1">
+                                                                <div className="font-medium">New segment</div>
+                                                                <div className="text-xs text-muted-foreground">
+                                                                    {previewListName
+                                                                        ? `${previewListName} · `
+                                                                        : ""}
+                                                                    {formatDuration(previewListDuration)}
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                <div
+                                                    data-segment-row="true"
+                                                    className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm"
+                                                    onDragOver={(event) => {
+                                                        event.preventDefault();
+                                                        const payload = parseDragPayload(event) ?? getDragPayload();
+                                                        if (!payload || payload.type !== "music-version") {
+                                                            setDropHint(null);
+                                                            setDropPreview(null);
+                                                            return;
+                                                        }
+                                                        setDropHint("segment-row");
+                                                        setDropPreview({
+                                                            target: "segments-list",
+                                                            index,
+                                                            itemType: "music",
+                                                            versionId: payload.id,
+                                                        });
+                                                    }}
+                                                    onDragLeave={() => {
+                                                        setDropHint(null);
+                                                        setDropPreview(null);
+                                                    }}
+                                                    onDrop={(event) => handleDropOnSegmentRow(event, index)}
+                                                >
+                                                    <div className="space-y-1">
+                                                        <div className="font-medium">
+                                                            Segment {index + 1}
+                                                        </div>
+                                                        <div className="text-xs text-muted-foreground">
+                                                            Music {segment.musicId.slice(0, 6)} · {formatDuration(segment.durationSeconds)}
+                                                        </div>
                                                     </div>
-                                                    <div className="text-xs text-muted-foreground">
-                                                        Music {segment.musicId.slice(0, 6)} · {formatDuration(segment.durationSeconds)}
+                                                    <div className="flex items-center gap-1">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => moveSegment(index, "up")}
+                                                            disabled={index === 0}
+                                                        >
+                                                            <ArrowUp className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => moveSegment(index, "down")}
+                                                            disabled={index === segments.length - 1}
+                                                        >
+                                                            <ArrowDown className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => removeSegment(index)}
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-1">
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() => moveSegment(index, "up")}
-                                                        disabled={index === 0}
-                                                    >
-                                                        <ArrowUp className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() => moveSegment(index, "down")}
-                                                        disabled={index === segments.length - 1}
-                                                    >
-                                                        <ArrowDown className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="icon"
-                                                        onClick={() => removeSegment(index)}
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </div>
+                                            </Fragment>
                                         ))}
+                                        {dropPreview?.target === "segments-list" &&
+                                            dropPreview.index === segments.length &&
+                                            previewListVersion && (
+                                                <div className="flex items-center justify-between rounded-md border border-dashed border-primary/40 bg-primary/10 px-3 py-2 text-sm text-muted-foreground opacity-70">
+                                                    <div className="space-y-1">
+                                                        <div className="font-medium">New segment</div>
+                                                        <div className="text-xs text-muted-foreground">
+                                                            {previewListName ? `${previewListName} · ` : ""}
+                                                            {formatDuration(previewListDuration)}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
                                     </div>
                                 )}
                             </div>
@@ -673,8 +932,12 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
                                         onDragOver={(event) => {
                                             event.preventDefault();
                                             setDropHint("image-group-list");
+                                            setDropPreview(null);
                                         }}
-                                        onDragLeave={() => setDropHint(null)}
+                                        onDragLeave={() => {
+                                            setDropHint(null);
+                                            setDropPreview(null);
+                                        }}
                                         onDrop={(event) => {
                                             event.preventDefault();
                                             const payload = parseDragPayload(event);
@@ -706,8 +969,12 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
                                         onDragOver={(event) => {
                                             event.preventDefault();
                                             setDropHint("image-group-list");
+                                            setDropPreview(null);
                                         }}
-                                        onDragLeave={() => setDropHint(null)}
+                                        onDragLeave={() => {
+                                            setDropHint(null);
+                                            setDropPreview(null);
+                                        }}
                                         onDrop={(event) => {
                                             const payload = parseDragPayload(event);
                                             if (!payload || payload.type !== "image-version") {

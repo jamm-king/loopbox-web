@@ -10,6 +10,17 @@ const {
     getImageGroupDurationSeconds,
     getImageGroupStartSeconds,
 } = require("../src/lib/video-timeline");
+const {
+    getInsertIndexByTime,
+    getInsertOffsetPercent,
+    mergeImageGroupsOnInsert,
+    parseDragDataTransfer,
+} = require("../src/lib/video-drop");
+const {
+    setDragPayload,
+    getDragPayload,
+    clearDragPayload,
+} = require("../src/lib/drag-payload");
 
 test("getStatusBadgeVariant returns default for IDLE", () => {
     assert.equal(getStatusBadgeVariant("IDLE"), "default");
@@ -100,4 +111,131 @@ test("getImageGroupStartSeconds returns range start", () => {
         [{ durationSeconds: 10 }, { durationSeconds: 20 }, { durationSeconds: 5 }]
     );
     assert.equal(start, 10);
+});
+
+test("getInsertOffsetPercent returns start percent for insert index", () => {
+    const percent = getInsertOffsetPercent(
+        [{ durationSeconds: 10 }, { durationSeconds: 30 }, { durationSeconds: 20 }],
+        60,
+        2
+    );
+    assert.equal(percent, (40 / 60) * 100);
+});
+
+test("getInsertOffsetPercent returns 0 when total duration is zero", () => {
+    const percent = getInsertOffsetPercent([{ durationSeconds: 10 }], 0, 1);
+    assert.equal(percent, 0);
+});
+
+test("getInsertIndexByTime returns index based on midpoint", () => {
+    const segments = [{ durationSeconds: 10 }, { durationSeconds: 10 }];
+    assert.equal(getInsertIndexByTime(segments, 4), 0);
+    assert.equal(getInsertIndexByTime(segments, 6), 1);
+});
+
+test("getInsertIndexByTime returns end index for tail position", () => {
+    const segments = [{ durationSeconds: 8 }, { durationSeconds: 12 }];
+    assert.equal(getInsertIndexByTime(segments, 25), 2);
+});
+
+test("mergeImageGroupsOnInsert extends left neighbor with same version", () => {
+    const result = mergeImageGroupsOnInsert(
+        [
+            {
+                imageVersionId: "img-v1",
+                imageId: "img-1",
+                segmentIndexStart: 0,
+                segmentIndexEnd: 1,
+            },
+        ],
+        2,
+        "img-v1",
+        "img-1",
+        5
+    );
+    assert.equal(result.error, undefined);
+    assert.equal(result.groups[0].segmentIndexEnd, 2);
+});
+
+test("mergeImageGroupsOnInsert merges both sides with same version", () => {
+    const result = mergeImageGroupsOnInsert(
+        [
+            {
+                imageVersionId: "img-v1",
+                imageId: "img-1",
+                segmentIndexStart: 0,
+                segmentIndexEnd: 0,
+            },
+            {
+                imageVersionId: "img-v1",
+                imageId: "img-1",
+                segmentIndexStart: 2,
+                segmentIndexEnd: 3,
+            },
+        ],
+        1,
+        "img-v1",
+        "img-1",
+        5
+    );
+    assert.equal(result.groups.length, 1);
+    assert.equal(result.groups[0].segmentIndexStart, 0);
+    assert.equal(result.groups[0].segmentIndexEnd, 3);
+});
+
+test("mergeImageGroupsOnInsert rejects overlap with different version", () => {
+    const result = mergeImageGroupsOnInsert(
+        [
+            {
+                imageVersionId: "img-v1",
+                imageId: "img-1",
+                segmentIndexStart: 0,
+                segmentIndexEnd: 2,
+            },
+        ],
+        1,
+        "img-v2",
+        "img-2",
+        5
+    );
+    assert.equal(result.error, "Image group overlaps an existing range");
+});
+
+test("parseDragDataTransfer returns json payload for mime type", () => {
+    const dataTransfer = {
+        getData: (type) =>
+            type === "application/x-loopbox"
+                ? JSON.stringify({ type: "music-version", id: "mv-1" })
+                : "",
+    };
+    assert.deepEqual(parseDragDataTransfer(dataTransfer), {
+        type: "music-version",
+        id: "mv-1",
+    });
+});
+
+test("parseDragDataTransfer returns fallback payload for text", () => {
+    const dataTransfer = {
+        getData: (type) => (type === "text/plain" ? "image-version:iv-2" : ""),
+    };
+    assert.deepEqual(parseDragDataTransfer(dataTransfer), {
+        type: "image-version",
+        id: "iv-2",
+    });
+});
+
+test("parseDragDataTransfer returns null for invalid json", () => {
+    const dataTransfer = {
+        getData: (type) => (type === "application/x-loopbox" ? "{oops" : ""),
+    };
+    assert.equal(parseDragDataTransfer(dataTransfer), null);
+});
+
+test("drag payload helpers store and clear payload", () => {
+    clearDragPayload();
+    assert.equal(getDragPayload(), null);
+    setDragPayload({ type: "music-version", id: "mv-9" });
+    assert.deepEqual(getDragPayload(), { type: "music-version", id: "mv-9" });
+    clearDragPayload();
+    assert.equal(getDragPayload(), null);
 });
