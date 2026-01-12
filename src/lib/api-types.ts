@@ -12,6 +12,14 @@ export interface CreateProjectResponse {
     project: Project;
 }
 
+export interface UpdateProjectRequest {
+    title: string;
+}
+
+export interface UpdateProjectResponse {
+    project: Project;
+}
+
 export interface GetProjectResponse {
     project: Project;
 }

@@ -3,6 +3,7 @@ const { test } = require("node:test");
 const { getStatusBadgeVariant } = require("../src/lib/status-badge");
 const { getMusicDisplayName } = require("../src/lib/music-display");
 const { buildCreateMusicRequest } = require("../src/lib/music-create");
+const { buildProjectUpdateRequest } = require("../src/lib/project-update");
 
 test("getStatusBadgeVariant returns default for IDLE", () => {
     assert.equal(getStatusBadgeVariant("IDLE"), "default");
@@ -46,5 +47,16 @@ test("buildCreateMusicRequest returns trimmed alias payload", () => {
     assert.deepEqual(
         buildCreateMusicRequest("  Night Drive "),
         { alias: "Night Drive" }
+    );
+});
+
+test("buildProjectUpdateRequest returns null when title is empty", () => {
+    assert.equal(buildProjectUpdateRequest("   "), null);
+});
+
+test("buildProjectUpdateRequest returns trimmed title payload", () => {
+    assert.deepEqual(
+        buildProjectUpdateRequest("  New Project "),
+        { title: "New Project" }
     );
 });
