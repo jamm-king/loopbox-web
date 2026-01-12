@@ -12,12 +12,19 @@ import {
     Image as ImageIcon,
     FileImage,
     Loader2,
+    Pencil,
     Plus,
-    RefreshCw
+    RefreshCw,
+    Check,
+    X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { projectApi, musicApi, imageApi } from "@/lib/api";
 import { Project, Music, Image } from "@/lib/api-types";
+import { getMusicDisplayName } from "@/lib/music-display";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { toast } from "@/lib/toast";
 type SidebarProps = HTMLAttributes<HTMLDivElement>;
 
 export function Sidebar({ className }: SidebarProps) {
@@ -36,6 +43,9 @@ export function Sidebar({ className }: SidebarProps) {
     // Music ID -> Music Details (reconstructed)
     const [musicDetails, setMusicDetails] = useState<Record<string, Music & { versions: import("@/lib/api-types").MusicVersion[] }>>({});
     const [loadingVersions, setLoadingVersions] = useState<Set<string>>(new Set());
+    const [editingMusicId, setEditingMusicId] = useState<string | null>(null);
+    const [editingAlias, setEditingAlias] = useState("");
+    const [isSavingAlias, setIsSavingAlias] = useState(false);
 
     // Image ID -> Image Details (reconstructed)
     const [imageDetails, setImageDetails] = useState<Record<string, Image & { versions: import("@/lib/api-types").ImageVersion[] }>>({});
@@ -237,6 +247,47 @@ export function Sidebar({ className }: SidebarProps) {
         setExpandedMusic(newExpanded);
     };
 
+    const startEditingMusic = (music: Music) => {
+        setEditingMusicId(music.id);
+        setEditingAlias(music.alias ?? "");
+    };
+
+    const cancelEditingMusic = () => {
+        setEditingMusicId(null);
+        setEditingAlias("");
+    };
+
+    const applyAliasUpdate = (projectId: string, musicId: string, alias: string | null) => {
+        setProjectMusic(prev => {
+            const next = { ...prev };
+            if (next[projectId]) {
+                next[projectId] = next[projectId].map(music =>
+                    music.id === musicId ? { ...music, alias } : music
+                );
+            }
+            return next;
+        });
+        setMusicDetails(prev =>
+            prev[musicId] ? { ...prev, [musicId]: { ...prev[musicId], alias } } : prev
+        );
+    };
+
+    const saveMusicAlias = async (projectId: string, musicId: string) => {
+        setIsSavingAlias(true);
+        try {
+            const response = await musicApi.update(projectId, musicId, { alias: editingAlias });
+            applyAliasUpdate(projectId, musicId, response.music.alias ?? null);
+            cancelEditingMusic();
+            toast("Alias updated", "success");
+            window.dispatchEvent(new Event("refresh-sidebar"));
+        } catch (error) {
+            console.error("Failed to update music alias:", error);
+            toast("Failed to update music alias", "error");
+        } finally {
+            setIsSavingAlias(false);
+        }
+    };
+
     const toggleImage = async (projectId: string, imageId: string) => {
         const newExpanded = new Set(expandedImages);
         if (newExpanded.has(imageId)) {
@@ -373,15 +424,69 @@ export function Sidebar({ className }: SidebarProps) {
                                                                         <ChevronRight className="h-4 w-4 text-muted-foreground" />
                                                                     )}
                                                                 </div>
-                                                                <Link
-                                                                    href={`/project/${project.id}/music/${music.id}`}
-                                                                    className="flex-1 flex items-center gap-2 py-1.5 pr-2 overflow-hidden"
-                                                                >
-                                                                    <MusicIcon className="h-4 w-4 text-purple-500 shrink-0" />
-                                                                    <span className="truncate">
-                                                                        {music.id.slice(0, 8)}
-                                                                    </span>
-                                                                </Link>
+                                                                {editingMusicId === music.id ? (
+                                                                    <div className="flex-1 flex items-center gap-2 py-1.5 pr-2 overflow-hidden">
+                                                                        <MusicIcon className="h-4 w-4 text-purple-500 shrink-0" />
+                                                                        <Input
+                                                                            value={editingAlias}
+                                                                            onChange={(event) => setEditingAlias(event.target.value)}
+                                                                            onKeyDown={(event) => {
+                                                                                if (event.key === "Enter") {
+                                                                                    event.preventDefault();
+                                                                                    saveMusicAlias(project.id, music.id);
+                                                                                }
+                                                                                if (event.key === "Escape") {
+                                                                                    event.preventDefault();
+                                                                                    cancelEditingMusic();
+                                                                                }
+                                                                            }}
+                                                                            className="h-7"
+                                                                            placeholder="Alias"
+                                                                            disabled={isSavingAlias}
+                                                                        />
+                                                                    </div>
+                                                                ) : (
+                                                                    <Link
+                                                                        href={`/project/${project.id}/music/${music.id}`}
+                                                                        className="flex-1 flex items-center gap-2 py-1.5 pr-2 overflow-hidden"
+                                                                    >
+                                                                        <MusicIcon className="h-4 w-4 text-purple-500 shrink-0" />
+                                                                        <span className="truncate">
+                                                                            {getMusicDisplayName(music)}
+                                                                        </span>
+                                                                    </Link>
+                                                                )}
+                                                                <div className="flex items-center gap-1 pr-2">
+                                                                    {editingMusicId === music.id ? (
+                                                                        <>
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                onClick={() => saveMusicAlias(project.id, music.id)}
+                                                                                disabled={isSavingAlias}
+                                                                            >
+                                                                                <Check className="h-4 w-4" />
+                                                                            </Button>
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="icon"
+                                                                                onClick={cancelEditingMusic}
+                                                                                disabled={isSavingAlias}
+                                                                            >
+                                                                                <X className="h-4 w-4" />
+                                                                            </Button>
+                                                                        </>
+                                                                    ) : (
+                                                                        <Button
+                                                                            variant="ghost"
+                                                                            size="icon"
+                                                                            onClick={() => startEditingMusic(music)}
+                                                                            title="Edit alias"
+                                                                        >
+                                                                            <Pencil className="h-4 w-4" />
+                                                                        </Button>
+                                                                    )}
+                                                                </div>
                                                             </div>
 
                                                             {expandedMusic.has(music.id) && (

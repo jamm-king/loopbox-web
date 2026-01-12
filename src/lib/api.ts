@@ -1,6 +1,7 @@
 import axios from 'axios';
 import {
     CreateImageResponse,
+    CreateMusicRequest,
     CreateMusicResponse,
     CreateProjectRequest,
     CreateProjectResponse,
@@ -16,6 +17,8 @@ import {
     GetMusicListResponse,
     GetMusicResponse,
     GetProjectResponse,
+    UpdateMusicRequest,
+    UpdateMusicResponse,
 } from './api-types';
 
 const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8080';
@@ -50,8 +53,8 @@ export const projectApi = {
 };
 
 export const musicApi = {
-    create: async (projectId: string): Promise<CreateMusicResponse> => {
-        const response = await api.post(`/project/${projectId}/music/create`);
+    create: async (projectId: string, data?: CreateMusicRequest): Promise<CreateMusicResponse> => {
+        const response = await api.post(`/project/${projectId}/music/create`, data);
         return response.data;
     },
     get: async (projectId: string, musicId: string): Promise<GetMusicResponse> => {
@@ -60,6 +63,14 @@ export const musicApi = {
     },
     getList: async (projectId: string): Promise<GetMusicListResponse> => {
         const response = await api.get(`/project/${projectId}/music`);
+        return response.data;
+    },
+    update: async (
+        projectId: string,
+        musicId: string,
+        data: UpdateMusicRequest
+    ): Promise<UpdateMusicResponse> => {
+        const response = await api.patch(`/project/${projectId}/music/${musicId}`, data);
         return response.data;
     },
     delete: async (projectId: string, musicId: string): Promise<void> => {
