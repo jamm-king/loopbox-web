@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback, type HTMLAttributes } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
     ChevronRight,
     ChevronDown,
@@ -25,12 +25,17 @@ import { getMusicDisplayName } from "@/lib/music-display";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "@/lib/toast";
+import { buildProjectUpdateRequest } from "@/lib/project-update";
 type SidebarProps = HTMLAttributes<HTMLDivElement>;
 
 export function Sidebar({ className }: SidebarProps) {
     const pathname = usePathname();
+    const router = useRouter();
     const [projects, setProjects] = useState<Project[]>([]);
     const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+    const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+    const [editingProjectTitle, setEditingProjectTitle] = useState("");
+    const [isSavingProjectTitle, setIsSavingProjectTitle] = useState(false);
 
     // Project ID -> Music List
     const [projectMusic, setProjectMusic] = useState<Record<string, Music[]>>({});
@@ -218,6 +223,43 @@ export function Sidebar({ className }: SidebarProps) {
         setExpandedProjects(newExpanded);
     };
 
+    const startEditingProject = (project: Project) => {
+        setEditingProjectId(project.id);
+        setEditingProjectTitle(project.title);
+    };
+
+    const cancelEditingProject = () => {
+        setEditingProjectId(null);
+        setEditingProjectTitle("");
+    };
+
+    const saveProjectTitle = async (projectId: string) => {
+        const request = buildProjectUpdateRequest(editingProjectTitle);
+        if (!request) {
+            toast("Project title cannot be empty", "error");
+            return;
+        }
+
+        setIsSavingProjectTitle(true);
+        try {
+            const response = await projectApi.update(projectId, request);
+            setProjects((prev) =>
+                prev.map((project) =>
+                    project.id === projectId ? { ...project, title: response.project.title } : project
+                )
+            );
+            cancelEditingProject();
+            window.dispatchEvent(new Event("refresh-sidebar"));
+            router.refresh();
+            toast("Project title updated", "success");
+        } catch (error) {
+            console.error("Failed to update project title:", error);
+            toast("Failed to update project title", "error");
+        } finally {
+            setIsSavingProjectTitle(false);
+        }
+    };
+
     const toggleMusic = async (projectId: string, musicId: string) => {
         const newExpanded = new Set(expandedMusic);
         if (newExpanded.has(musicId)) {
@@ -372,21 +414,81 @@ export function Sidebar({ className }: SidebarProps) {
                                                     <ChevronRight className="h-4 w-4 text-muted-foreground" />
                                                 )}
                                             </div>
-                                            <Link
-                                                href={`/project/${project.id}`}
-                                                className="flex-1 flex items-center gap-2 py-1.5 pr-2 overflow-hidden"
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <Folder className="h-4 w-4 text-blue-500 shrink-0" />
-                                                <span className="truncate">{project.title}</span>
-                                            </Link>
-                                            <Link
-                                                href={`/project/${project.id}/music/new`}
-                                                className="mr-2 opacity-0 group-hover:opacity-100 transition-opacity hover:text-foreground"
-                                                onClick={(e) => e.stopPropagation()}
-                                            >
-                                                <Plus className="h-3.5 w-3.5" />
-                                            </Link>
+                                            {editingProjectId === project.id ? (
+                                                <div className="flex-1 flex items-center gap-2 py-1.5 pr-2 overflow-hidden">
+                                                    <Folder className="h-4 w-4 text-blue-500 shrink-0" />
+                                                    <Input
+                                                        value={editingProjectTitle}
+                                                        onChange={(event) => setEditingProjectTitle(event.target.value)}
+                                                        onKeyDown={(event) => {
+                                                            if (event.key === "Enter") {
+                                                                event.preventDefault();
+                                                                saveProjectTitle(project.id);
+                                                            }
+                                                            if (event.key === "Escape") {
+                                                                event.preventDefault();
+                                                                cancelEditingProject();
+                                                            }
+                                                        }}
+                                                        className="h-7"
+                                                        placeholder="Project title"
+                                                        disabled={isSavingProjectTitle}
+                                                    />
+                                                </div>
+                                            ) : (
+                                                <Link
+                                                    href={`/project/${project.id}`}
+                                                    className="flex-1 flex items-center gap-2 py-1.5 pr-2 overflow-hidden"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                >
+                                                    <Folder className="h-4 w-4 text-blue-500 shrink-0" />
+                                                    <span className="truncate">{project.title}</span>
+                                                </Link>
+                                            )}
+                                            <div className="flex items-center gap-1 mr-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                {editingProjectId === project.id ? (
+                                                    <>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={() => saveProjectTitle(project.id)}
+                                                            disabled={isSavingProjectTitle}
+                                                        >
+                                                            <Check className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={cancelEditingProject}
+                                                            disabled={isSavingProjectTitle}
+                                                        >
+                                                            <X className="h-4 w-4" />
+                                                        </Button>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                startEditingProject(project);
+                                                            }}
+                                                            title="Edit project title"
+                                                        >
+                                                            <Pencil className="h-4 w-4" />
+                                                        </Button>
+                                                        <Link
+                                                            href={`/project/${project.id}/music/new`}
+                                                            className="hover:text-foreground"
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            title="New Music"
+                                                        >
+                                                            <Plus className="h-3.5 w-3.5" />
+                                                        </Link>
+                                                    </>
+                                                )}
+                                            </div>
                                         </div>
 
                                         {expandedProjects.has(project.id) && (

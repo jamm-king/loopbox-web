@@ -17,6 +17,8 @@ import {
     GetMusicListResponse,
     GetMusicResponse,
     GetProjectResponse,
+    UpdateProjectRequest,
+    UpdateProjectResponse,
     UpdateMusicRequest,
     UpdateMusicResponse,
 } from './api-types';
@@ -37,6 +39,10 @@ const api = axios.create({
 export const projectApi = {
     create: async (data: CreateProjectRequest): Promise<CreateProjectResponse> => {
         const response = await api.post('/project', data);
+        return response.data;
+    },
+    update: async (projectId: string, data: UpdateProjectRequest): Promise<UpdateProjectResponse> => {
+        const response = await api.patch(`/project/${projectId}`, data);
         return response.data;
     },
     get: async (projectId: string): Promise<GetProjectResponse> => {

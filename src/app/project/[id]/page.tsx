@@ -2,7 +2,7 @@ import { projectApi, musicApi, imageApi } from "@/lib/api";
 import type { Image, Music, Project } from "@/lib/api-types";
 import { MusicList } from "@/components/music-list";
 import { ImageList } from "@/components/image-list";
-import { Badge } from "@/components/ui/badge";
+import { ProjectTitleEditor } from "@/components/project-title-editor";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
@@ -55,17 +55,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Back to Projects
                 </Link>
-                <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                        <h1 className="text-4xl font-bold tracking-tight">{project.title}</h1>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                            <span>ID: {project.id}</span>
-                            <Badge variant={project.status === 'COMPLETED' ? 'default' : 'secondary'}>
-                                {project.status}
-                            </Badge>
-                        </div>
-                    </div>
-                </div>
+                <ProjectTitleEditor project={project} />
             </div>
 
             <div className="space-y-10">
