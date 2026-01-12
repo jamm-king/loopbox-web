@@ -1,9 +1,8 @@
 import { musicApi } from "@/lib/api";
 import type { Music, MusicVersion } from "@/lib/api-types";
 import { GenerateVersionForm } from "@/components/generate-version-form";
+import { MusicAliasEditor } from "@/components/music-alias-editor";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { getStatusBadgeVariant } from "@/lib/status-badge";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
@@ -56,17 +55,7 @@ export default async function MusicDetailPage({ params }: MusicDetailPageProps) 
                     <ArrowLeft className="mr-2 h-4 w-4" />
                     Back to Project
                 </Link>
-                <div className="flex items-center justify-between">
-                    <div className="space-y-1">
-                        <h1 className="text-4xl font-bold tracking-tight">Music Details</h1>
-                        <div className="flex items-center gap-2 text-muted-foreground">
-                            <span>ID: {music.id}</span>
-                            <Badge variant={getStatusBadgeVariant(music.status)}>
-                                {music.status}
-                            </Badge>
-                        </div>
-                    </div>
-                </div>
+                <MusicAliasEditor projectId={projectId} music={music} />
             </div>
 
             <div className="grid gap-8 lg:grid-cols-3">

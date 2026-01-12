@@ -38,10 +38,23 @@ export interface MusicVersion {
 
 export interface Music {
     id: string;
+    alias?: string | null;
     status: string;
 }
 
 export interface CreateMusicResponse {
+    music: Music;
+}
+
+export interface CreateMusicRequest {
+    alias?: string | null;
+}
+
+export interface UpdateMusicRequest {
+    alias?: string | null;
+}
+
+export interface UpdateMusicResponse {
     music: Music;
 }
 

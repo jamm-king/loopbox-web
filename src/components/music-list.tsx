@@ -1,14 +1,18 @@
 "use client";
 
+import { useState } from "react";
 import { Music } from "@/lib/api-types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getStatusBadgeVariant } from "@/lib/status-badge";
-import { Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Check, Pencil, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { musicApi } from "@/lib/api";
 import { useRouter } from "next/navigation";
+import { getMusicDisplayName } from "@/lib/music-display";
+import { toast } from "@/lib/toast";
 
 interface MusicListProps {
     projectId: string;
@@ -17,6 +21,9 @@ interface MusicListProps {
 
 export function MusicList({ projectId, musicList }: MusicListProps) {
     const router = useRouter();
+    const [editingMusicId, setEditingMusicId] = useState<string | null>(null);
+    const [editingAlias, setEditingAlias] = useState("");
+    const [isSaving, setIsSaving] = useState(false);
 
     const handleDelete = async (musicId: string) => {
         if (!window.confirm("Are you sure you want to delete this music?")) {
@@ -29,7 +36,33 @@ export function MusicList({ projectId, musicList }: MusicListProps) {
             window.dispatchEvent(new Event('refresh-sidebar'));
         } catch (error) {
             console.error("Failed to delete music:", error);
-            alert("Failed to delete music");
+            toast("Failed to delete music", "error");
+        }
+    };
+
+    const startEditing = (music: Music) => {
+        setEditingMusicId(music.id);
+        setEditingAlias(music.alias ?? "");
+    };
+
+    const cancelEditing = () => {
+        setEditingMusicId(null);
+        setEditingAlias("");
+    };
+
+    const handleSave = async (musicId: string) => {
+        setIsSaving(true);
+        try {
+            await musicApi.update(projectId, musicId, { alias: editingAlias });
+            cancelEditing();
+            router.refresh();
+            window.dispatchEvent(new Event('refresh-sidebar'));
+            toast("Alias updated", "success");
+        } catch (error) {
+            console.error("Failed to update music alias:", error);
+            toast("Failed to update music alias", "error");
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -50,31 +83,93 @@ export function MusicList({ projectId, musicList }: MusicListProps) {
             ) : (
                 <div className="grid gap-4">
                     {musicList.map((music) => (
-                        <Card key={music.id} className="transition-all hover:border-primary/50 hover:shadow-md">
+                        <Card
+                            key={music.id}
+                            className="transition-all hover:border-primary/50 hover:shadow-md"
+                        >
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <div className="flex items-center gap-2">
-                                    <CardTitle className="text-lg font-medium">
-                                        Music {music.id.slice(0, 8)}
-                                    </CardTitle>
-                                    <Badge variant={getStatusBadgeVariant(music.status)}>
-                                        {music.status}
-                                    </Badge>
+                                    {editingMusicId === music.id ? (
+                                        <>
+                                            <Input
+                                                value={editingAlias}
+                                                onChange={(e) => setEditingAlias(e.target.value)}
+                                                onKeyDown={(event) => {
+                                                    if (event.key === "Enter") {
+                                                        event.preventDefault();
+                                                        handleSave(music.id);
+                                                    }
+                                                    if (event.key === "Escape") {
+                                                        event.preventDefault();
+                                                        cancelEditing();
+                                                    }
+                                                }}
+                                                className="h-8 w-48"
+                                                placeholder="Alias"
+                                                disabled={isSaving}
+                                            />
+                                            <Badge variant={getStatusBadgeVariant(music.status)}>
+                                                {music.status}
+                                            </Badge>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CardTitle className="text-lg font-medium">
+                                                {getMusicDisplayName(music, { prefix: "Music" })}
+                                            </CardTitle>
+                                            <Badge variant={getStatusBadgeVariant(music.status)}>
+                                                {music.status}
+                                            </Badge>
+                                        </>
+                                    )}
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <Link href={`/project/${projectId}/music/${music.id}`}>
-                                        <Button variant="outline" size="sm">
-                                            View Details
-                                        </Button>
-                                    </Link>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                                        onClick={() => music.status !== 'GENERATING' && handleDelete(music.id)}
-                                        disabled={music.status === 'GENERATING'}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
+                                    {editingMusicId === music.id ? (
+                                        <>
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => handleSave(music.id)}
+                                                disabled={isSaving}
+                                            >
+                                                {isSaving ? null : <Check className="mr-1 h-4 w-4" />}
+                                                Save
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={cancelEditing}
+                                                disabled={isSaving}
+                                            >
+                                                <X className="h-4 w-4" />
+                                            </Button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => startEditing(music)}
+                                                title="Edit alias"
+                                            >
+                                                <Pencil className="h-4 w-4" />
+                                            </Button>
+                                            <Link href={`/project/${projectId}/music/${music.id}`}>
+                                                <Button variant="outline" size="sm">
+                                                    View Details
+                                                </Button>
+                                            </Link>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                                onClick={() => music.status !== 'GENERATING' && handleDelete(music.id)}
+                                                disabled={music.status === 'GENERATING'}
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                        </>
+                                    )}
                                 </div>
                             </CardHeader>
                             <CardContent>
