@@ -28,6 +28,8 @@ import { toast } from "@/lib/toast";
 import { buildProjectUpdateRequest } from "@/lib/project-update";
 type SidebarProps = HTMLAttributes<HTMLDivElement>;
 
+const dragMimeType = "application/x-loopbox";
+
 export function Sidebar({ className }: SidebarProps) {
     const pathname = usePathname();
     const router = useRouter();
@@ -358,6 +360,16 @@ export function Sidebar({ className }: SidebarProps) {
         setExpandedImages(newExpanded);
     };
 
+    const handleDragStart = (
+        event: React.DragEvent,
+        payload: { type: "music-version" | "image-version"; id: string }
+    ) => {
+        event.stopPropagation();
+        event.dataTransfer.setData(dragMimeType, JSON.stringify(payload));
+        event.dataTransfer.setData("text/plain", `${payload.type}:${payload.id}`);
+        event.dataTransfer.effectAllowed = "copy";
+    };
+
     return (
         <div className={cn("fixed left-0 top-0 z-40 h-screen w-64 border-r border-border bg-card text-card-foreground", className)}>
             <div className="flex h-full flex-col">
@@ -609,6 +621,13 @@ export function Sidebar({ className }: SidebarProps) {
                                                                                 className={cn(
                                                                                     "group flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground pl-6",
                                                                                 )}
+                                                                                draggable
+                                                                                onDragStart={(event) =>
+                                                                                    handleDragStart(event, {
+                                                                                        type: "music-version",
+                                                                                        id: version.id,
+                                                                                    })
+                                                                                }
                                                                             >
                                                                                 <FileAudio className="h-3.5 w-3.5 text-green-500" />
                                                                                 <span className="truncate text-xs">
@@ -685,6 +704,13 @@ export function Sidebar({ className }: SidebarProps) {
                                                                                 className={cn(
                                                                                     "group flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground pl-6",
                                                                                 )}
+                                                                                draggable
+                                                                                onDragStart={(event) =>
+                                                                                    handleDragStart(event, {
+                                                                                        type: "image-version",
+                                                                                        id: version.id,
+                                                                                    })
+                                                                                }
                                                                             >
                                                                                 <FileImage className="h-3.5 w-3.5 text-amber-500" />
                                                                                 <span className="truncate text-xs">

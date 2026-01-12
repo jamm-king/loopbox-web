@@ -17,10 +17,14 @@ import {
     GetMusicListResponse,
     GetMusicResponse,
     GetProjectResponse,
+    GetVideoResponse,
     UpdateProjectRequest,
     UpdateProjectResponse,
     UpdateMusicRequest,
     UpdateMusicResponse,
+    UpdateVideoRequest,
+    UpdateVideoResponse,
+    RenderVideoResponse,
 } from './api-types';
 
 const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8080';
@@ -143,6 +147,21 @@ export const imageApi = {
         const response = await api.delete(
             `/project/${projectId}/image/${imageId}/version/${versionId}`
         );
+        return response.data;
+    },
+};
+
+export const videoApi = {
+    get: async (projectId: string): Promise<GetVideoResponse> => {
+        const response = await api.get(`/project/${projectId}/video`);
+        return response.data;
+    },
+    update: async (projectId: string, data: UpdateVideoRequest): Promise<UpdateVideoResponse> => {
+        const response = await api.put(`/project/${projectId}/video`, data);
+        return response.data;
+    },
+    render: async (projectId: string): Promise<RenderVideoResponse> => {
+        const response = await api.post(`/project/${projectId}/video/render`);
         return response.data;
     },
 };

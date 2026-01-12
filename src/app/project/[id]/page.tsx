@@ -3,6 +3,7 @@ import type { Image, Music, Project } from "@/lib/api-types";
 import { MusicList } from "@/components/music-list";
 import { ImageList } from "@/components/image-list";
 import { ProjectTitleEditor } from "@/components/project-title-editor";
+import { VideoEditor } from "@/components/video-editor";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
@@ -61,6 +62,7 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
             <div className="space-y-10">
                 <MusicList projectId={id} musicList={musicList} />
                 <ImageList projectId={id} images={images} />
+                <VideoEditor projectId={id} />
             </div>
         </main>
     );
