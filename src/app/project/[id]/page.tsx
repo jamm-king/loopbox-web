@@ -60,9 +60,9 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
             </div>
 
             <div className="space-y-10">
+                <VideoEditor projectId={id} />
                 <MusicList projectId={id} musicList={musicList} />
                 <ImageList projectId={id} images={images} />
-                <VideoEditor projectId={id} />
             </div>
         </main>
     );
