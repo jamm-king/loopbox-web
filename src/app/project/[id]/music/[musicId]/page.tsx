@@ -2,6 +2,7 @@ import { musicApi } from "@/lib/api";
 import type { Music, MusicVersion } from "@/lib/api-types";
 import { GenerateVersionForm } from "@/components/generate-version-form";
 import { MusicAliasEditor } from "@/components/music-alias-editor";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";

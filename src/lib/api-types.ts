@@ -138,3 +138,49 @@ export interface GenerateImageVersionResponse {
 export interface DeleteImageVersionResponse {
     image: Image;
 }
+
+export interface VideoSegment {
+    id: string;
+    musicVersionId: string;
+    musicId: string;
+    durationSeconds: number;
+    order: number;
+}
+
+export interface VideoImageGroup {
+    id: string;
+    imageVersionId: string;
+    imageId: string;
+    segmentIndexStart: number;
+    segmentIndexEnd: number;
+}
+
+export interface Video {
+    id: string;
+    projectId: string;
+    status: string;
+    totalDurationSeconds: number;
+    segments: VideoSegment[];
+    imageGroups: VideoImageGroup[];
+}
+
+export interface GetVideoResponse {
+    video: Video;
+}
+
+export interface UpdateVideoRequest {
+    segments: Array<{ musicVersionId: string }>;
+    imageGroups: Array<{
+        imageVersionId: string;
+        segmentIndexStart: number;
+        segmentIndexEnd: number;
+    }>;
+}
+
+export interface UpdateVideoResponse {
+    video: Video;
+}
+
+export interface RenderVideoResponse {
+    video: Video;
+}

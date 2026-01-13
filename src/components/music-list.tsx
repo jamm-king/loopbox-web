@@ -1,17 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Music } from "@/lib/api-types";
+import { Music, MusicVersion } from "@/lib/api-types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getStatusBadgeVariant } from "@/lib/status-badge";
 import { Input } from "@/components/ui/input";
-import { Check, Pencil, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, ChevronRight, Pencil, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { musicApi } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { getMusicDisplayName } from "@/lib/music-display";
+import { clearDragPayload, setDragPayload } from "@/lib/drag-payload";
 import { toast } from "@/lib/toast";
 
 interface MusicListProps {
@@ -24,6 +25,17 @@ export function MusicList({ projectId, musicList }: MusicListProps) {
     const [editingMusicId, setEditingMusicId] = useState<string | null>(null);
     const [editingAlias, setEditingAlias] = useState("");
     const [isSaving, setIsSaving] = useState(false);
+    const [expandedMusicIds, setExpandedMusicIds] = useState<Set<string>>(new Set());
+    const [musicDetails, setMusicDetails] = useState<Record<string, { versions: MusicVersion[] }>>({});
+    const [loadingVersions, setLoadingVersions] = useState<Set<string>>(new Set());
+
+    const handleDragStart = (event: React.DragEvent, versionId: string) => {
+        event.stopPropagation();
+        event.dataTransfer.setData("application/x-loopbox", JSON.stringify({ type: "music-version", id: versionId }));
+        event.dataTransfer.setData("text/plain", `music-version:${versionId}`);
+        setDragPayload({ type: "music-version", id: versionId });
+        event.dataTransfer.effectAllowed = "copy";
+    };
 
     const handleDelete = async (musicId: string) => {
         if (!window.confirm("Are you sure you want to delete this music?")) {
@@ -66,6 +78,37 @@ export function MusicList({ projectId, musicList }: MusicListProps) {
         }
     };
 
+    const toggleVersions = async (musicId: string) => {
+        setExpandedMusicIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(musicId)) {
+                next.delete(musicId);
+            } else {
+                next.add(musicId);
+            }
+            return next;
+        });
+        if (!musicDetails[musicId]) {
+            setLoadingVersions((prev) => new Set(prev).add(musicId));
+            try {
+                const response = await musicApi.get(projectId, musicId);
+                setMusicDetails((prev) => ({
+                    ...prev,
+                    [musicId]: { versions: response.versions },
+                }));
+            } catch (error) {
+                console.error("Failed to fetch music versions:", error);
+                toast("Failed to load music versions", "error");
+            } finally {
+                setLoadingVersions((prev) => {
+                    const next = new Set(prev);
+                    next.delete(musicId);
+                    return next;
+                });
+            }
+        }
+    };
+
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -89,6 +132,18 @@ export function MusicList({ projectId, musicList }: MusicListProps) {
                         >
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => toggleVersions(music.id)}
+                                        title="Toggle versions"
+                                    >
+                                        {expandedMusicIds.has(music.id) ? (
+                                            <ChevronDown className="h-4 w-4" />
+                                        ) : (
+                                            <ChevronRight className="h-4 w-4" />
+                                        )}
+                                    </Button>
                                     {editingMusicId === music.id ? (
                                         <>
                                             <Input
@@ -174,9 +229,36 @@ export function MusicList({ projectId, musicList }: MusicListProps) {
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-2">
-                                    <div className="text-sm text-muted-foreground">
-                                        Click details to see versions
-                                    </div>
+                                    {expandedMusicIds.has(music.id) ? (
+                                        loadingVersions.has(music.id) ? (
+                                            <div className="text-sm text-muted-foreground">Loading versions...</div>
+                                        ) : musicDetails[music.id]?.versions?.length ? (
+                                            <div className="space-y-2">
+                                                {musicDetails[music.id].versions.map((version) => (
+                                                    <div
+                                                        key={version.id}
+                                                        className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-xs"
+                                                        draggable
+                                                        onDragStart={(event) => handleDragStart(event, version.id)}
+                                                        onDragEnd={clearDragPayload}
+                                                    >
+                                                        <div className="text-muted-foreground">
+                                                            Version {version.id.slice(0, 8)}
+                                                        </div>
+                                                        <div className="text-muted-foreground">
+                                                            {version.durationSeconds ?? 0}s
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="text-sm text-muted-foreground">No versions yet.</div>
+                                        )
+                                    ) : (
+                                        <div className="text-sm text-muted-foreground">
+                                            Expand to see versions
+                                        </div>
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>
