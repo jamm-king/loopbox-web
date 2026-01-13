@@ -25,6 +25,7 @@ const {
     getDragPayload,
     clearDragPayload,
 } = require("../src/lib/drag-payload");
+const { buildVideoFileUrl } = require("../src/lib/video-file-url");
 
 test("getStatusBadgeVariant returns default for IDLE", () => {
     assert.equal(getStatusBadgeVariant("IDLE"), "default");
@@ -372,4 +373,14 @@ test("drag payload helpers store and clear payload", () => {
     assert.deepEqual(getDragPayload(), { type: "music-version", id: "mv-9" });
     clearDragPayload();
     assert.equal(getDragPayload(), null);
+});
+
+test("buildVideoFileUrl appends cache key when file id exists", () => {
+    const url = buildVideoFileUrl("http://localhost:8080/api", "project-1", "file-9");
+    assert.equal(url, "http://localhost:8080/api/project/project-1/video/file?v=file-9");
+});
+
+test("buildVideoFileUrl omits cache key when file id missing", () => {
+    const url = buildVideoFileUrl("http://localhost:8080/api", "project-1");
+    assert.equal(url, "http://localhost:8080/api/project/project-1/video/file");
 });

@@ -219,6 +219,12 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
             imageGroups.map((group, index) => ({ group, index })),
         [imageGroups]
     );
+    const videoFileUrl = useMemo(() => {
+        if (!video || video.status !== "READY") {
+            return "";
+        }
+        return videoApi.getFileUrl(projectId, video.fileId);
+    }, [projectId, video?.fileId, video?.status]);
 
     const resolveMusicPreview = (payload: DragPayload | null | undefined) => {
         if (!payload) {
@@ -1043,6 +1049,23 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
                                     Status: {video?.status ?? "DRAFT"}
                                 </div>
                             </div>
+                            {video?.status === "READY" && videoFileUrl ? (
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between text-sm text-muted-foreground">
+                                        <span>Rendered Video</span>
+                                        <Button variant="outline" size="sm" asChild>
+                                            <a href={videoFileUrl} target="_blank" rel="noreferrer">
+                                                Open
+                                            </a>
+                                        </Button>
+                                    </div>
+                                    <video
+                                        className="w-full rounded-md border border-border bg-black"
+                                        controls
+                                        src={videoFileUrl}
+                                    />
+                                </div>
+                            ) : null}
                             {renderSegmentBar()}
                         </div>
 

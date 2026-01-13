@@ -26,6 +26,7 @@ import {
     UpdateVideoResponse,
     RenderVideoResponse,
 } from './api-types';
+import { buildVideoFileUrl } from './video-file-url';
 
 const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8080';
 
@@ -163,5 +164,8 @@ export const videoApi = {
     render: async (projectId: string): Promise<RenderVideoResponse> => {
         const response = await api.post(`/project/${projectId}/video/render`);
         return response.data;
+    },
+    getFileUrl: (projectId: string, fileId?: string): string => {
+        return buildVideoFileUrl(API_BASE_URL, projectId, fileId);
     },
 };
