@@ -13,7 +13,11 @@ const {
 const {
     getInsertIndexByTime,
     getInsertOffsetPercent,
+    getSegmentIndexByTime,
     mergeImageGroupsOnInsert,
+    moveItemByIndex,
+    moveItemByIndexReplace,
+    moveImageGroupsBySlot,
     parseDragDataTransfer,
 } = require("../src/lib/video-drop");
 const {
@@ -138,6 +142,15 @@ test("getInsertIndexByTime returns end index for tail position", () => {
     assert.equal(getInsertIndexByTime(segments, 25), 2);
 });
 
+test("getSegmentIndexByTime returns index of segment range", () => {
+    const segments = [{ durationSeconds: 10 }, { durationSeconds: 10 }, { durationSeconds: 5 }];
+    assert.equal(getSegmentIndexByTime(segments, 0), 0);
+    assert.equal(getSegmentIndexByTime(segments, 9.9), 0);
+    assert.equal(getSegmentIndexByTime(segments, 10), 1);
+    assert.equal(getSegmentIndexByTime(segments, 19.9), 1);
+    assert.equal(getSegmentIndexByTime(segments, 25), 2);
+});
+
 test("mergeImageGroupsOnInsert extends left neighbor with same version", () => {
     const result = mergeImageGroupsOnInsert(
         [
@@ -155,6 +168,25 @@ test("mergeImageGroupsOnInsert extends left neighbor with same version", () => {
     );
     assert.equal(result.error, undefined);
     assert.equal(result.groups[0].segmentIndexEnd, 2);
+});
+
+test("mergeImageGroupsOnInsert extends right neighbor with same version", () => {
+    const result = mergeImageGroupsOnInsert(
+        [
+            {
+                imageVersionId: "img-v1",
+                imageId: "img-1",
+                segmentIndexStart: 2,
+                segmentIndexEnd: 3,
+            },
+        ],
+        1,
+        "img-v1",
+        "img-1",
+        5
+    );
+    assert.equal(result.error, undefined);
+    assert.equal(result.groups[0].segmentIndexStart, 1);
 });
 
 test("mergeImageGroupsOnInsert merges both sides with same version", () => {
@@ -199,6 +231,108 @@ test("mergeImageGroupsOnInsert rejects overlap with different version", () => {
         5
     );
     assert.equal(result.error, "Image group overlaps an existing range");
+});
+
+test("moveItemByIndex moves item forward", () => {
+    const result = moveItemByIndex(["a", "b", "c", "d"], 1, 3);
+    assert.deepEqual(result, ["a", "c", "b", "d"]);
+});
+
+test("moveItemByIndex moves item backward", () => {
+    const result = moveItemByIndex(["a", "b", "c", "d"], 3, 1);
+    assert.deepEqual(result, ["a", "d", "b", "c"]);
+});
+
+test("moveItemByIndex moves item to end", () => {
+    const result = moveItemByIndex(["a", "b", "c", "d"], 1, 4);
+    assert.deepEqual(result, ["a", "c", "d", "b"]);
+});
+
+test("moveItemByIndexReplace replaces target slot", () => {
+    const result = moveItemByIndexReplace(["a", "b", "c", "d"], 1, 2);
+    assert.deepEqual(result, ["a", "c", "b", "d"]);
+});
+
+test("moveImageGroupsBySlot moves group by slot index", () => {
+    const groups = [
+        {
+            imageVersionId: "v1",
+            imageId: "i1",
+            segmentIndexStart: 0,
+            segmentIndexEnd: 1,
+        },
+        {
+            imageVersionId: "v2",
+            imageId: "i2",
+            segmentIndexStart: 2,
+            segmentIndexEnd: 2,
+        },
+        {
+            imageVersionId: "v3",
+            imageId: "i3",
+            segmentIndexStart: 3,
+            segmentIndexEnd: 3,
+        },
+    ];
+    const result = moveImageGroupsBySlot(groups, 1, 0, 4);
+    assert.deepEqual(result, [
+        {
+            imageVersionId: "v2",
+            imageId: "i2",
+            segmentIndexStart: 0,
+            segmentIndexEnd: 0,
+        },
+        {
+            imageVersionId: "v1",
+            imageId: "i1",
+            segmentIndexStart: 1,
+            segmentIndexEnd: 2,
+        },
+        {
+            imageVersionId: "v3",
+            imageId: "i3",
+            segmentIndexStart: 3,
+            segmentIndexEnd: 3,
+        },
+    ]);
+});
+
+test("moveImageGroupsBySlot merges adjacent same version", () => {
+    const groups = [
+        {
+            imageVersionId: "v1",
+            imageId: "i1",
+            segmentIndexStart: 0,
+            segmentIndexEnd: 0,
+        },
+        {
+            imageVersionId: "v2",
+            imageId: "i2",
+            segmentIndexStart: 1,
+            segmentIndexEnd: 1,
+        },
+        {
+            imageVersionId: "v1",
+            imageId: "i1",
+            segmentIndexStart: 2,
+            segmentIndexEnd: 2,
+        },
+    ];
+    const result = moveImageGroupsBySlot(groups, 2, 1, 4);
+    assert.deepEqual(result, [
+        {
+            imageVersionId: "v1",
+            imageId: "i1",
+            segmentIndexStart: 0,
+            segmentIndexEnd: 1,
+        },
+        {
+            imageVersionId: "v2",
+            imageId: "i2",
+            segmentIndexStart: 2,
+            segmentIndexEnd: 2,
+        },
+    ]);
 });
 
 test("parseDragDataTransfer returns json payload for mime type", () => {

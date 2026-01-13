@@ -25,6 +25,22 @@ const getInsertIndexByTime = (segments, targetSeconds) => {
     return segments.length;
 };
 
+const getSegmentIndexByTime = (segments, targetSeconds) => {
+    if (!Array.isArray(segments) || segments.length === 0) {
+        return 0;
+    }
+    let cursor = 0;
+    for (let i = 0; i < segments.length; i += 1) {
+        const duration = segments[i]?.durationSeconds ?? 0;
+        const end = cursor + duration;
+        if (targetSeconds < end) {
+            return i;
+        }
+        cursor = end;
+    }
+    return Math.max(0, segments.length - 1);
+};
+
 const parseDragDataTransfer = (dataTransfer, mimeType = "application/x-loopbox") => {
     if (!dataTransfer || typeof dataTransfer.getData !== "function") {
         return null;
@@ -121,9 +137,102 @@ const mergeImageGroupsOnInsert = (groups, segmentIndex, imageVersionId, imageId,
     };
 };
 
+const moveItemByIndex = (items, fromIndex, toIndex) => {
+    if (!Array.isArray(items)) {
+        return items;
+    }
+    if (fromIndex === toIndex) {
+        return items;
+    }
+    if (fromIndex < 0 || fromIndex >= items.length) {
+        return items;
+    }
+    let targetIndex = Math.max(0, Math.min(items.length, toIndex));
+    const next = [...items];
+    const [moved] = next.splice(fromIndex, 1);
+    if (fromIndex < targetIndex) {
+        targetIndex -= 1;
+    }
+    next.splice(targetIndex, 0, moved);
+    return next;
+};
+
+const moveItemByIndexReplace = (items, fromIndex, toIndex) => {
+    if (!Array.isArray(items)) {
+        return items;
+    }
+    if (fromIndex === toIndex) {
+        return items;
+    }
+    if (fromIndex < 0 || fromIndex >= items.length) {
+        return items;
+    }
+    const targetIndex = Math.max(0, Math.min(items.length - 1, toIndex));
+    const next = [...items];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(targetIndex, 0, moved);
+    return next;
+};
+
+const moveImageGroupsBySlot = (groups, groupIndex, targetStart, segmentsLength) => {
+    if (!Array.isArray(groups) || segmentsLength <= 0) {
+        return groups;
+    }
+    if (groupIndex < 0 || groupIndex >= groups.length) {
+        return groups;
+    }
+    const active = groups[groupIndex];
+    const length = Math.max(1, active.segmentIndexEnd - active.segmentIndexStart + 1);
+    const maxStart = Math.max(0, segmentsLength - length);
+    const nextStart = Math.max(0, Math.min(maxStart, targetStart));
+    const slots = Array.from({ length: segmentsLength }, () => null);
+    groups.forEach((group, idx) => {
+        for (let i = group.segmentIndexStart; i <= group.segmentIndexEnd; i += 1) {
+            if (i >= 0 && i < segmentsLength) {
+                slots[i] = idx;
+            }
+        }
+    });
+    const block = slots.slice(active.segmentIndexStart, active.segmentIndexStart + length);
+    slots.splice(active.segmentIndexStart, length);
+    slots.splice(nextStart, 0, ...block);
+    const rebuilt = [];
+    let currentIdx = null;
+    let startIndex = null;
+    for (let i = 0; i <= slots.length; i += 1) {
+        const slot = i < slots.length ? slots[i] : null;
+        if (slot !== currentIdx) {
+            if (currentIdx !== null && startIndex !== null) {
+                const source = groups[currentIdx];
+                rebuilt.push({
+                    imageVersionId: source.imageVersionId,
+                    imageId: source.imageId,
+                    segmentIndexStart: startIndex,
+                    segmentIndexEnd: i - 1,
+                });
+            }
+            currentIdx = slot;
+            startIndex = slot !== null ? i : null;
+        }
+    }
+    return rebuilt.reduce((acc, group) => {
+        const last = acc[acc.length - 1];
+        if (last && last.imageVersionId === group.imageVersionId) {
+            last.segmentIndexEnd = group.segmentIndexEnd;
+            return acc;
+        }
+        acc.push({ ...group });
+        return acc;
+    }, []);
+};
+
 module.exports = {
     getInsertOffsetPercent,
     getInsertIndexByTime,
+    getSegmentIndexByTime,
     parseDragDataTransfer,
     mergeImageGroupsOnInsert,
+    moveItemByIndex,
+    moveItemByIndexReplace,
+    moveImageGroupsBySlot,
 };
