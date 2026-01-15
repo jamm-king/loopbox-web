@@ -1,5 +1,6 @@
 export interface Project {
     id: string;
+    ownerUserId: string;
     title: string;
     status: string;
 }
@@ -184,4 +185,45 @@ export interface UpdateVideoResponse {
 
 export interface RenderVideoResponse {
     video: Video;
+}
+
+export interface AuthUser {
+    id: string;
+    email: string;
+}
+
+export interface SignupRequest {
+    email: string;
+    password: string;
+}
+
+export interface SignupResponse {
+    user: AuthUser;
+    accessToken: string;
+    refreshToken: string;
+}
+
+export interface LoginRequest {
+    email: string;
+    password: string;
+}
+
+export interface LoginResponse {
+    user: AuthUser;
+    accessToken: string;
+    refreshToken: string;
+}
+
+export interface RefreshRequest {
+    refreshToken: string;
+}
+
+export interface RefreshResponse {
+    user: AuthUser;
+    accessToken: string;
+    refreshToken: string;
+}
+
+export interface LogoutRequest {
+    refreshToken: string;
 }

@@ -27,6 +27,8 @@ import { Input } from "@/components/ui/input";
 import { toast } from "@/lib/toast";
 import { buildProjectUpdateRequest } from "@/lib/project-update";
 import { clearDragPayload, setDragPayload } from "@/lib/drag-payload";
+import { AUTH_EVENT_NAME, AUTH_STORAGE_KEY, loadAuthState } from "@/lib/auth";
+import { EVENTS } from "@/lib/events";
 type SidebarProps = HTMLAttributes<HTMLDivElement>;
 
 const dragMimeType = "application/x-loopbox";
@@ -83,6 +85,12 @@ export function Sidebar({ className }: SidebarProps) {
     const refreshSidebar = useCallback(async () => {
         // 1. Always fetch projects to show new ones
         try {
+            const auth = loadAuthState();
+            if (!auth) {
+                setProjects([]);
+                setLoadingProjects(false);
+                return;
+            }
             const response = await projectApi.getAll();
             setProjects(response.projectList);
         } catch (error) {
@@ -156,10 +164,19 @@ export function Sidebar({ className }: SidebarProps) {
         refreshSidebar();
 
         const handleRefresh = () => refreshSidebar();
-        window.addEventListener('refresh-sidebar', handleRefresh);
+        const handleStorage = (event: StorageEvent) => {
+            if (!event.key || event.key === AUTH_STORAGE_KEY) {
+                refreshSidebar();
+            }
+        };
+        window.addEventListener(EVENTS.REFRESH_SIDEBAR, handleRefresh);
+        window.addEventListener(AUTH_EVENT_NAME, handleRefresh);
+        window.addEventListener("storage", handleStorage);
 
         return () => {
-            window.removeEventListener('refresh-sidebar', handleRefresh);
+            window.removeEventListener(EVENTS.REFRESH_SIDEBAR, handleRefresh);
+            window.removeEventListener(AUTH_EVENT_NAME, handleRefresh);
+            window.removeEventListener("storage", handleStorage);
         };
     }, [refreshSidebar]);
 
@@ -252,8 +269,7 @@ export function Sidebar({ className }: SidebarProps) {
                 )
             );
             cancelEditingProject();
-            window.dispatchEvent(new Event("refresh-sidebar"));
-            router.refresh();
+            window.dispatchEvent(new Event(EVENTS.REFRESH_SIDEBAR));
             toast("Project title updated", "success");
         } catch (error) {
             console.error("Failed to update project title:", error);
@@ -324,7 +340,8 @@ export function Sidebar({ className }: SidebarProps) {
             applyAliasUpdate(projectId, musicId, response.music.alias ?? null);
             cancelEditingMusic();
             toast("Alias updated", "success");
-            window.dispatchEvent(new Event("refresh-sidebar"));
+            window.dispatchEvent(new Event(EVENTS.REFRESH_SIDEBAR));
+            window.dispatchEvent(new Event(EVENTS.REFRESH_PROJECT_MUSIC));
         } catch (error) {
             console.error("Failed to update music alias:", error);
             toast("Failed to update music alias", "error");

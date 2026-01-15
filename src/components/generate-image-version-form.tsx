@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { imageApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,14 +13,19 @@ interface GenerateImageVersionFormProps {
     projectId: string;
     imageId: string;
     isImageGenerating?: boolean;
+    onStartGenerating?: () => void;
+    onGenerated?: (status: string) => void;
+    onGenerationFailed?: () => void;
 }
 
 export function GenerateImageVersionForm({
     projectId,
     imageId,
     isImageGenerating = false,
+    onStartGenerating,
+    onGenerated,
+    onGenerationFailed,
 }: GenerateImageVersionFormProps) {
-    const router = useRouter();
     const [isLoading, setIsLoading] = useState(false);
     const [provider, setProvider] = useState("REPLICATE_GOOGLE_IMAGEN_4");
     const [description, setDescription] = useState("");
@@ -31,20 +35,24 @@ export function GenerateImageVersionForm({
     const handleGenerate = async (e: FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
+        onStartGenerating?.();
         try {
-            await imageApi.generateVersion(projectId, imageId, {
+            const response = await imageApi.generateVersion(projectId, imageId, {
                 provider,
                 description: description || undefined,
                 width: width ? parseInt(width, 10) : undefined,
                 height: height ? parseInt(height, 10) : undefined,
             });
-            router.refresh();
+            onGenerated?.(response.image.status);
         } catch (error) {
             console.error("Failed to generate image version", error);
+            onGenerationFailed?.();
         } finally {
             setIsLoading(false);
         }
     };
+
+    const isGenerating = isLoading || isImageGenerating;
 
     return (
         <Card>
@@ -72,7 +80,7 @@ export function GenerateImageVersionForm({
                             placeholder="Describe the image..."
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            disabled={isLoading || isImageGenerating}
+                            disabled={isGenerating}
                         />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
@@ -84,7 +92,7 @@ export function GenerateImageVersionForm({
                                 placeholder="e.g., 1024"
                                 value={width}
                                 onChange={(e) => setWidth(e.target.value)}
-                                disabled={isLoading || isImageGenerating}
+                                disabled={isGenerating}
                             />
                         </div>
                         <div className="space-y-2">
@@ -95,15 +103,15 @@ export function GenerateImageVersionForm({
                                 placeholder="e.g., 1024"
                                 value={height}
                                 onChange={(e) => setHeight(e.target.value)}
-                                disabled={isLoading || isImageGenerating}
+                                disabled={isGenerating}
                             />
                         </div>
                     </div>
                 </CardContent>
                 <CardFooter>
-                    <Button type="submit" disabled={isLoading || isImageGenerating} className="w-full">
-                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        {isImageGenerating ? "Generating..." : "Generate"}
+                    <Button type="submit" disabled={isGenerating} className="w-full">
+                        {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {isGenerating ? "Generating..." : "Generate"}
                     </Button>
                 </CardFooter>
             </form>

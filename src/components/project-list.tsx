@@ -9,15 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
 import { projectApi } from "@/lib/api";
-import { useRouter } from "next/navigation";
+import { EVENTS } from "@/lib/events";
 
 interface ProjectListProps {
     projects: Project[];
 }
 
 export function ProjectList({ projects }: ProjectListProps) {
-    const router = useRouter();
-
     const handleDelete = async (e: MouseEvent<HTMLButtonElement>, projectId: string) => {
         e.preventDefault();
         e.stopPropagation();
@@ -28,8 +26,8 @@ export function ProjectList({ projects }: ProjectListProps) {
 
         try {
             await projectApi.delete(projectId);
-            router.refresh();
-            window.dispatchEvent(new Event('refresh-sidebar'));
+            window.dispatchEvent(new Event(EVENTS.REFRESH_PROJECTS));
+            window.dispatchEvent(new Event(EVENTS.REFRESH_SIDEBAR));
         } catch (error) {
             console.error("Failed to delete project:", error);
             alert("Failed to delete project");

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Image, ImageVersion } from "@/lib/api-types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,9 +9,9 @@ import { getStatusBadgeVariant } from "@/lib/status-badge";
 import { ChevronDown, ChevronRight, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { imageApi } from "@/lib/api";
-import { useRouter } from "next/navigation";
 import { toast } from "@/lib/toast";
 import { clearDragPayload, setDragPayload } from "@/lib/drag-payload";
+import { EVENTS } from "@/lib/events";
 
 interface ImageListProps {
     projectId: string;
@@ -19,10 +19,68 @@ interface ImageListProps {
 }
 
 export function ImageList({ projectId, images }: ImageListProps) {
-    const router = useRouter();
     const [expandedImageIds, setExpandedImageIds] = useState<Set<string>>(new Set());
     const [imageDetails, setImageDetails] = useState<Record<string, { versions: ImageVersion[] }>>({});
     const [loadingVersions, setLoadingVersions] = useState<Set<string>>(new Set());
+
+    const refreshExpandedImageDetails = useCallback(async () => {
+        const expandedIds = Array.from(expandedImageIds);
+        if (expandedIds.length === 0) {
+            return;
+        }
+        setLoadingVersions((prev) => {
+            const next = new Set(prev);
+            expandedIds.forEach((id) => next.add(id));
+            return next;
+        });
+        await Promise.all(
+            expandedIds.map(async (imageId) => {
+                try {
+                    const response = await imageApi.get(projectId, imageId);
+                    setImageDetails((prev) => ({
+                        ...prev,
+                        [imageId]: { versions: response.versions },
+                    }));
+                } catch (error) {
+                    console.error("Failed to fetch image versions:", error);
+                } finally {
+                    setLoadingVersions((prev) => {
+                        const next = new Set(prev);
+                        next.delete(imageId);
+                        return next;
+                    });
+                }
+            })
+        );
+    }, [expandedImageIds, projectId]);
+
+    useEffect(() => {
+        const handleRefresh = () => refreshExpandedImageDetails();
+        window.addEventListener(EVENTS.REFRESH_PROJECT_IMAGES, handleRefresh);
+        window.addEventListener(EVENTS.IMAGE_LIST_UPDATED, handleRefresh);
+        return () => {
+            window.removeEventListener(EVENTS.REFRESH_PROJECT_IMAGES, handleRefresh);
+            window.removeEventListener(EVENTS.IMAGE_LIST_UPDATED, handleRefresh);
+        };
+    }, [refreshExpandedImageDetails]);
+
+    useEffect(() => {
+        if (expandedImageIds.size === 0) {
+            return;
+        }
+        const shouldPoll = images.some(
+            (image) => image.status === "GENERATING" || image.status === "DELETING"
+        );
+        if (!shouldPoll) {
+            return;
+        }
+        const intervalId = window.setInterval(() => {
+            refreshExpandedImageDetails();
+        }, 5000);
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [expandedImageIds, images, refreshExpandedImageDetails]);
 
     const handleDragStart = (event: React.DragEvent, versionId: string) => {
         event.stopPropagation();
@@ -39,8 +97,8 @@ export function ImageList({ projectId, images }: ImageListProps) {
 
         try {
             await imageApi.delete(projectId, imageId);
-            router.refresh();
-            window.dispatchEvent(new Event("refresh-sidebar"));
+            window.dispatchEvent(new Event(EVENTS.REFRESH_PROJECT_IMAGES));
+            window.dispatchEvent(new Event(EVENTS.REFRESH_SIDEBAR));
         } catch (error) {
             console.error("Failed to delete image:", error);
             toast("Failed to delete image", "error");

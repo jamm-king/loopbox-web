@@ -6,6 +6,7 @@ import { imageApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
+import { EVENTS } from "@/lib/events";
 
 export default function CreateImagePage() {
     const router = useRouter();
@@ -21,8 +22,8 @@ export default function CreateImagePage() {
         try {
             const res = await imageApi.create(projectId);
             router.push(`/project/${projectId}/image/${res.image.id}`);
-            router.refresh();
-            window.dispatchEvent(new Event("refresh-sidebar"));
+            window.dispatchEvent(new Event(EVENTS.REFRESH_SIDEBAR));
+            window.dispatchEvent(new Event(EVENTS.REFRESH_PROJECT_IMAGES));
         } catch (error) {
             console.error("Failed to create image", error);
         } finally {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Music, MusicVersion } from "@/lib/api-types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -10,10 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Check, ChevronDown, ChevronRight, Pencil, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { musicApi } from "@/lib/api";
-import { useRouter } from "next/navigation";
 import { getMusicDisplayName } from "@/lib/music-display";
 import { clearDragPayload, setDragPayload } from "@/lib/drag-payload";
 import { toast } from "@/lib/toast";
+import { EVENTS } from "@/lib/events";
 
 interface MusicListProps {
     projectId: string;
@@ -21,13 +21,69 @@ interface MusicListProps {
 }
 
 export function MusicList({ projectId, musicList }: MusicListProps) {
-    const router = useRouter();
     const [editingMusicId, setEditingMusicId] = useState<string | null>(null);
     const [editingAlias, setEditingAlias] = useState("");
     const [isSaving, setIsSaving] = useState(false);
     const [expandedMusicIds, setExpandedMusicIds] = useState<Set<string>>(new Set());
     const [musicDetails, setMusicDetails] = useState<Record<string, { versions: MusicVersion[] }>>({});
     const [loadingVersions, setLoadingVersions] = useState<Set<string>>(new Set());
+
+    const refreshExpandedMusicDetails = useCallback(async () => {
+        const expandedIds = Array.from(expandedMusicIds);
+        if (expandedIds.length === 0) {
+            return;
+        }
+        setLoadingVersions((prev) => {
+            const next = new Set(prev);
+            expandedIds.forEach((id) => next.add(id));
+            return next;
+        });
+        await Promise.all(
+            expandedIds.map(async (musicId) => {
+                try {
+                    const response = await musicApi.get(projectId, musicId);
+                    setMusicDetails((prev) => ({
+                        ...prev,
+                        [musicId]: { versions: response.versions },
+                    }));
+                } catch (error) {
+                    console.error("Failed to fetch music versions:", error);
+                } finally {
+                    setLoadingVersions((prev) => {
+                        const next = new Set(prev);
+                        next.delete(musicId);
+                        return next;
+                    });
+                }
+            })
+        );
+    }, [expandedMusicIds, projectId]);
+
+    useEffect(() => {
+        const handleRefresh = () => refreshExpandedMusicDetails();
+        window.addEventListener(EVENTS.REFRESH_PROJECT_MUSIC, handleRefresh);
+        window.addEventListener(EVENTS.MUSIC_LIST_UPDATED, handleRefresh);
+        return () => {
+            window.removeEventListener(EVENTS.REFRESH_PROJECT_MUSIC, handleRefresh);
+            window.removeEventListener(EVENTS.MUSIC_LIST_UPDATED, handleRefresh);
+        };
+    }, [refreshExpandedMusicDetails]);
+
+    useEffect(() => {
+        if (expandedMusicIds.size === 0) {
+            return;
+        }
+        const shouldPoll = musicList.some((music) => music.status === "GENERATING");
+        if (!shouldPoll) {
+            return;
+        }
+        const intervalId = window.setInterval(() => {
+            refreshExpandedMusicDetails();
+        }, 5000);
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [expandedMusicIds, musicList, refreshExpandedMusicDetails]);
 
     const handleDragStart = (event: React.DragEvent, versionId: string) => {
         event.stopPropagation();
@@ -44,8 +100,8 @@ export function MusicList({ projectId, musicList }: MusicListProps) {
 
         try {
             await musicApi.delete(projectId, musicId);
-            router.refresh();
-            window.dispatchEvent(new Event('refresh-sidebar'));
+            window.dispatchEvent(new Event(EVENTS.REFRESH_PROJECT_MUSIC));
+            window.dispatchEvent(new Event(EVENTS.REFRESH_SIDEBAR));
         } catch (error) {
             console.error("Failed to delete music:", error);
             toast("Failed to delete music", "error");
@@ -67,8 +123,8 @@ export function MusicList({ projectId, musicList }: MusicListProps) {
         try {
             await musicApi.update(projectId, musicId, { alias: editingAlias });
             cancelEditing();
-            router.refresh();
-            window.dispatchEvent(new Event('refresh-sidebar'));
+            window.dispatchEvent(new Event(EVENTS.REFRESH_PROJECT_MUSIC));
+            window.dispatchEvent(new Event(EVENTS.REFRESH_SIDEBAR));
             toast("Alias updated", "success");
         } catch (error) {
             console.error("Failed to update music alias:", error);

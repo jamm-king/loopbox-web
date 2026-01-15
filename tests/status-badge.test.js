@@ -375,12 +375,12 @@ test("drag payload helpers store and clear payload", () => {
     assert.equal(getDragPayload(), null);
 });
 
-test("buildVideoFileUrl appends cache key when file id exists", () => {
-    const url = buildVideoFileUrl("http://localhost:8080/api", "project-1", "file-9");
-    assert.equal(url, "http://localhost:8080/api/project/project-1/video/file?v=file-9");
+test("buildVideoFileUrl appends cache key and access token when file id exists", () => {
+    const url = buildVideoFileUrl("http://localhost:8080/api", "project-1", "file-9", "token-123");
+    assert.equal(url, "http://localhost:8080/api/project/project-1/video/file?v=file-9&accessToken=token-123");
 });
 
 test("buildVideoFileUrl omits cache key when file id missing", () => {
-    const url = buildVideoFileUrl("http://localhost:8080/api", "project-1");
-    assert.equal(url, "http://localhost:8080/api/project/project-1/video/file");
+    const url = buildVideoFileUrl("http://localhost:8080/api", "project-1", undefined, "token-123");
+    assert.equal(url, "http://localhost:8080/api/project/project-1/video/file?accessToken=token-123");
 });

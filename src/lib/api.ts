@@ -25,8 +25,16 @@ import {
     UpdateVideoRequest,
     UpdateVideoResponse,
     RenderVideoResponse,
+    SignupRequest,
+    SignupResponse,
+    LoginRequest,
+    LoginResponse,
+    RefreshRequest,
+    RefreshResponse,
+    LogoutRequest,
 } from './api-types';
 import { buildVideoFileUrl } from './video-file-url';
+import { clearAuthState, getAccessToken } from './auth';
 
 const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8080';
 
@@ -40,6 +48,35 @@ const api = axios.create({
         'Content-Type': 'application/json',
     },
 });
+
+api.interceptors.request.use((config) => {
+    const accessToken = getAccessToken();
+    if (accessToken) {
+        config.headers = {
+            ...config.headers,
+            Authorization: `Bearer ${accessToken}`,
+        };
+    }
+    return config;
+});
+
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error?.response?.status === 401) {
+            clearAuthState();
+        }
+        return Promise.reject(error);
+    }
+);
+
+const requireAccessToken = () => {
+    const accessToken = getAccessToken();
+    if (!accessToken) {
+        throw new Error("User not authenticated");
+    }
+    return accessToken;
+};
 
 export const projectApi = {
     create: async (data: CreateProjectRequest): Promise<CreateProjectResponse> => {
@@ -65,7 +102,10 @@ export const projectApi = {
 
 export const musicApi = {
     create: async (projectId: string, data?: CreateMusicRequest): Promise<CreateMusicResponse> => {
-        const response = await api.post(`/project/${projectId}/music/create`, data);
+        const response = await api.post(
+            `/project/${projectId}/music/create`,
+            data
+        );
         return response.data;
     },
     get: async (projectId: string, musicId: string): Promise<GetMusicResponse> => {
@@ -103,19 +143,22 @@ export const musicApi = {
         musicId: string,
         versionId: string
     ): Promise<DeleteVersionResponse> => {
-        const response = await api.delete(
-            `/project/${projectId}/music/${musicId}/version/${versionId}`
-        );
+        const response = await api.delete(`/project/${projectId}/music/${musicId}/version/${versionId}`);
         return response.data;
     },
     getAudioUrl: (musicId: string, versionId: string): string => {
-        return `${API_BASE_URL}/music/${musicId}/versions/${versionId}/audio`;
+        const accessToken = requireAccessToken();
+        const params = new URLSearchParams({ accessToken });
+        return `${API_BASE_URL}/music/${musicId}/versions/${versionId}/audio?${params.toString()}`;
     },
 };
 
 export const imageApi = {
     create: async (projectId: string): Promise<CreateImageResponse> => {
-        const response = await api.post(`/project/${projectId}/image/create`);
+        const response = await api.post(
+            `/project/${projectId}/image/create`,
+            undefined
+        );
         return response.data;
     },
     get: async (projectId: string, imageId: string): Promise<GetImageResponse> => {
@@ -145,9 +188,7 @@ export const imageApi = {
         imageId: string,
         versionId: string
     ): Promise<DeleteImageVersionResponse> => {
-        const response = await api.delete(
-            `/project/${projectId}/image/${imageId}/version/${versionId}`
-        );
+        const response = await api.delete(`/project/${projectId}/image/${imageId}/version/${versionId}`);
         return response.data;
     },
 };
@@ -166,6 +207,24 @@ export const videoApi = {
         return response.data;
     },
     getFileUrl: (projectId: string, fileId?: string): string => {
-        return buildVideoFileUrl(API_BASE_URL, projectId, fileId);
+        return buildVideoFileUrl(API_BASE_URL, projectId, fileId, requireAccessToken());
+    },
+};
+
+export const authApi = {
+    signup: async (data: SignupRequest): Promise<SignupResponse> => {
+        const response = await api.post("/auth/signup", data);
+        return response.data;
+    },
+    login: async (data: LoginRequest): Promise<LoginResponse> => {
+        const response = await api.post("/auth/login", data);
+        return response.data;
+    },
+    refresh: async (data: RefreshRequest): Promise<RefreshResponse> => {
+        const response = await api.post("/auth/refresh", data);
+        return response.data;
+    },
+    logout: async (data: LogoutRequest): Promise<void> => {
+        await api.post("/auth/logout", data);
     },
 };
