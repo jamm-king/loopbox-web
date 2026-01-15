@@ -13,7 +13,12 @@ export const loadAuthState = (): AuthState | null => {
     const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     try {
-        return JSON.parse(raw) as AuthState;
+        const parsed = JSON.parse(raw) as Partial<AuthState>;
+        if (!isValidAuthState(parsed)) {
+            window.localStorage.removeItem(STORAGE_KEY);
+            return null;
+        }
+        return parsed as AuthState;
     } catch {
         return null;
     }
@@ -30,6 +35,19 @@ export const clearAuthState = () => {
     window.localStorage.removeItem(STORAGE_KEY);
     window.dispatchEvent(new Event(AUTH_CHANGE_EVENT));
 };
+
+const isValidAuthState = (state: Partial<AuthState> | null | undefined): state is AuthState => {
+    if (!state) return false;
+    return (
+        isNonEmptyString(state.userId) &&
+        isNonEmptyString(state.email) &&
+        isNonEmptyString(state.accessToken) &&
+        isNonEmptyString(state.refreshToken)
+    );
+};
+
+const isNonEmptyString = (value: unknown): value is string =>
+    typeof value === "string" && value.trim().length > 0;
 
 export const getUserId = (): string | null => loadAuthState()?.userId ?? null;
 export const getAccessToken = (): string | null => loadAuthState()?.accessToken ?? null;

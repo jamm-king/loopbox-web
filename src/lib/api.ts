@@ -34,7 +34,7 @@ import {
     LogoutRequest,
 } from './api-types';
 import { buildVideoFileUrl } from './video-file-url';
-import { getAccessToken, getUserId } from './auth';
+import { clearAuthState, getAccessToken } from './auth';
 
 const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8080';
 
@@ -60,33 +60,43 @@ api.interceptors.request.use((config) => {
     return config;
 });
 
-const requireUserId = () => {
-    const userId = getUserId();
-    if (!userId) {
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error?.response?.status === 401) {
+            clearAuthState();
+        }
+        return Promise.reject(error);
+    }
+);
+
+const requireAccessToken = () => {
+    const accessToken = getAccessToken();
+    if (!accessToken) {
         throw new Error("User not authenticated");
     }
-    return userId;
+    return accessToken;
 };
 
 export const projectApi = {
     create: async (data: CreateProjectRequest): Promise<CreateProjectResponse> => {
-        const response = await api.post('/project', data, { params: { userId: requireUserId() } });
+        const response = await api.post('/project', data);
         return response.data;
     },
     update: async (projectId: string, data: UpdateProjectRequest): Promise<UpdateProjectResponse> => {
-        const response = await api.patch(`/project/${projectId}`, data, { params: { userId: requireUserId() } });
+        const response = await api.patch(`/project/${projectId}`, data);
         return response.data;
     },
     get: async (projectId: string): Promise<GetProjectResponse> => {
-        const response = await api.get(`/project/${projectId}`, { params: { userId: requireUserId() } });
+        const response = await api.get(`/project/${projectId}`);
         return response.data;
     },
     getAll: async (): Promise<GetAllProjectResponse> => {
-        const response = await api.get('/project', { params: { userId: requireUserId() } });
+        const response = await api.get('/project');
         return response.data;
     },
     delete: async (projectId: string): Promise<void> => {
-        await api.delete(`/project/${projectId}`, { params: { userId: requireUserId() } });
+        await api.delete(`/project/${projectId}`);
     },
 };
 
@@ -94,23 +104,16 @@ export const musicApi = {
     create: async (projectId: string, data?: CreateMusicRequest): Promise<CreateMusicResponse> => {
         const response = await api.post(
             `/project/${projectId}/music/create`,
-            data,
-            { params: { userId: requireUserId() } }
+            data
         );
         return response.data;
     },
     get: async (projectId: string, musicId: string): Promise<GetMusicResponse> => {
-        const response = await api.get(
-            `/project/${projectId}/music/${musicId}`,
-            { params: { userId: requireUserId() } }
-        );
+        const response = await api.get(`/project/${projectId}/music/${musicId}`);
         return response.data;
     },
     getList: async (projectId: string): Promise<GetMusicListResponse> => {
-        const response = await api.get(
-            `/project/${projectId}/music`,
-            { params: { userId: requireUserId() } }
-        );
+        const response = await api.get(`/project/${projectId}/music`);
         return response.data;
     },
     update: async (
@@ -118,18 +121,11 @@ export const musicApi = {
         musicId: string,
         data: UpdateMusicRequest
     ): Promise<UpdateMusicResponse> => {
-        const response = await api.patch(
-            `/project/${projectId}/music/${musicId}`,
-            data,
-            { params: { userId: requireUserId() } }
-        );
+        const response = await api.patch(`/project/${projectId}/music/${musicId}`, data);
         return response.data;
     },
     delete: async (projectId: string, musicId: string): Promise<void> => {
-        await api.delete(
-            `/project/${projectId}/music/${musicId}`,
-            { params: { userId: requireUserId() } }
-        );
+        await api.delete(`/project/${projectId}/music/${musicId}`);
     },
     generateVersion: async (
         projectId: string,
@@ -138,8 +134,7 @@ export const musicApi = {
     ): Promise<GenerateVersionResponse> => {
         const response = await api.post(
             `/project/${projectId}/music/${musicId}/version/generate`,
-            data,
-            { params: { userId: requireUserId() } }
+            data
         );
         return response.data;
     },
@@ -148,15 +143,12 @@ export const musicApi = {
         musicId: string,
         versionId: string
     ): Promise<DeleteVersionResponse> => {
-        const response = await api.delete(
-            `/project/${projectId}/music/${musicId}/version/${versionId}`,
-            { params: { userId: requireUserId() } }
-        );
+        const response = await api.delete(`/project/${projectId}/music/${musicId}/version/${versionId}`);
         return response.data;
     },
     getAudioUrl: (musicId: string, versionId: string): string => {
-        const userId = requireUserId();
-        const params = new URLSearchParams({ userId });
+        const accessToken = requireAccessToken();
+        const params = new URLSearchParams({ accessToken });
         return `${API_BASE_URL}/music/${musicId}/versions/${versionId}/audio?${params.toString()}`;
     },
 };
@@ -165,30 +157,20 @@ export const imageApi = {
     create: async (projectId: string): Promise<CreateImageResponse> => {
         const response = await api.post(
             `/project/${projectId}/image/create`,
-            undefined,
-            { params: { userId: requireUserId() } }
+            undefined
         );
         return response.data;
     },
     get: async (projectId: string, imageId: string): Promise<GetImageResponse> => {
-        const response = await api.get(
-            `/project/${projectId}/image/${imageId}`,
-            { params: { userId: requireUserId() } }
-        );
+        const response = await api.get(`/project/${projectId}/image/${imageId}`);
         return response.data;
     },
     getList: async (projectId: string): Promise<GetImageListResponse> => {
-        const response = await api.get(
-            `/project/${projectId}/image`,
-            { params: { userId: requireUserId() } }
-        );
+        const response = await api.get(`/project/${projectId}/image`);
         return response.data;
     },
     delete: async (projectId: string, imageId: string): Promise<void> => {
-        await api.delete(
-            `/project/${projectId}/image/${imageId}`,
-            { params: { userId: requireUserId() } }
-        );
+        await api.delete(`/project/${projectId}/image/${imageId}`);
     },
     generateVersion: async (
         projectId: string,
@@ -197,8 +179,7 @@ export const imageApi = {
     ): Promise<GenerateImageVersionResponse> => {
         const response = await api.post(
             `/project/${projectId}/image/${imageId}/version/generate`,
-            data,
-            { params: { userId: requireUserId() } }
+            data
         );
         return response.data;
     },
@@ -207,29 +188,26 @@ export const imageApi = {
         imageId: string,
         versionId: string
     ): Promise<DeleteImageVersionResponse> => {
-        const response = await api.delete(
-            `/project/${projectId}/image/${imageId}/version/${versionId}`,
-            { params: { userId: requireUserId() } }
-        );
+        const response = await api.delete(`/project/${projectId}/image/${imageId}/version/${versionId}`);
         return response.data;
     },
 };
 
 export const videoApi = {
     get: async (projectId: string): Promise<GetVideoResponse> => {
-        const response = await api.get(`/project/${projectId}/video`, { params: { userId: requireUserId() } });
+        const response = await api.get(`/project/${projectId}/video`);
         return response.data;
     },
     update: async (projectId: string, data: UpdateVideoRequest): Promise<UpdateVideoResponse> => {
-        const response = await api.put(`/project/${projectId}/video`, data, { params: { userId: requireUserId() } });
+        const response = await api.put(`/project/${projectId}/video`, data);
         return response.data;
     },
     render: async (projectId: string): Promise<RenderVideoResponse> => {
-        const response = await api.post(`/project/${projectId}/video/render`, undefined, { params: { userId: requireUserId() } });
+        const response = await api.post(`/project/${projectId}/video/render`);
         return response.data;
     },
     getFileUrl: (projectId: string, fileId?: string): string => {
-        return buildVideoFileUrl(API_BASE_URL, projectId, fileId, requireUserId());
+        return buildVideoFileUrl(API_BASE_URL, projectId, fileId, requireAccessToken());
     },
 };
 
