@@ -160,6 +160,7 @@ export interface Video {
     projectId: string;
     status: string;
     totalDurationSeconds: number;
+    fileId?: string;
     segments: VideoSegment[];
     imageGroups: VideoImageGroup[];
 }
