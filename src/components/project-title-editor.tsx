@@ -9,14 +9,13 @@ import { Input } from "@/components/ui/input";
 import { toast } from "@/lib/toast";
 import { buildProjectUpdateRequest } from "@/lib/project-update";
 import { Check, Pencil, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { EVENTS } from "@/lib/events";
 
 interface ProjectTitleEditorProps {
     project: Project;
 }
 
 export function ProjectTitleEditor({ project }: ProjectTitleEditorProps) {
-    const router = useRouter();
     const [isEditing, setIsEditing] = useState(false);
     const [title, setTitle] = useState(project.title);
     const [currentTitle, setCurrentTitle] = useState(project.title);
@@ -46,8 +45,8 @@ export function ProjectTitleEditor({ project }: ProjectTitleEditorProps) {
             const response = await projectApi.update(project.id, request);
             setCurrentTitle(response.project.title);
             setIsEditing(false);
-            window.dispatchEvent(new Event("refresh-sidebar"));
-            router.refresh();
+            window.dispatchEvent(new Event(EVENTS.REFRESH_SIDEBAR));
+            window.dispatchEvent(new Event(EVENTS.REFRESH_PROJECTS));
             toast("Project title updated", "success");
         } catch (error) {
             console.error("Failed to update project title:", error);

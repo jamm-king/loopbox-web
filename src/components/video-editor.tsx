@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { videoApi, musicApi, imageApi } from "@/lib/api";
 import type { Image, ImageVersion, Music, MusicVersion, Video } from "@/lib/api-types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +24,7 @@ import {
 } from "@/lib/video-drop";
 import { clearDragPayload, getDragPayload, setDragPayload } from "@/lib/drag-payload";
 import { Check, Loader2, Plus, Trash2, ArrowUp, ArrowDown } from "lucide-react";
+import { EVENTS } from "@/lib/events";
 
 type MusicVersionItem = MusicVersion & { musicId: string; musicAlias?: string | null };
 type ImageVersionItem = ImageVersion & { imageId: string };
@@ -123,83 +124,123 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
     const imageTimelineRef = useRef<HTMLDivElement | null>(null);
     const segmentsListRef = useRef<HTMLDivElement | null>(null);
     const imageGroupsListRef = useRef<HTMLDivElement | null>(null);
+    const isMountedRef = useRef(true);
 
     useEffect(() => {
-        let isMounted = true;
-
-        const load = async () => {
-            setIsLoading(true);
-            try {
-                const [videoResponse, musicListResponse, imageListResponse] = await Promise.all([
-                    videoApi.get(projectId),
-                    musicApi.getList(projectId),
-                    imageApi.getList(projectId),
-                ]);
-
-                const musicDetails = await Promise.all(
-                    musicListResponse.musicList.map(async (music: Music) => {
-                        const detail = await musicApi.get(projectId, music.id);
-                        return detail;
-                    })
-                );
-                const musicVersionItems = musicDetails.flatMap((detail) =>
-                    detail.versions.map((version) => ({
-                        ...version,
-                        musicId: detail.music.id,
-                        musicAlias: detail.music.alias,
-                    }))
-                );
-
-                const imageDetails = await Promise.all(
-                    imageListResponse.images.map(async (image: Image) => {
-                        const detail = await imageApi.get(projectId, image.id);
-                        return detail;
-                    })
-                );
-                const imageVersionItems = imageDetails.flatMap((detail) =>
-                    detail.versions.map((version) => ({
-                        ...version,
-                        imageId: detail.image.id,
-                    }))
-                );
-
-                if (!isMounted) {
-                    return;
-                }
-
-                setVideo(videoResponse.video);
-                setSegments(
-                    videoResponse.video.segments.map((segment) => ({
-                        musicVersionId: segment.musicVersionId,
-                        musicId: segment.musicId,
-                        durationSeconds: segment.durationSeconds,
-                    }))
-                );
-                setImageGroups(
-                    videoResponse.video.imageGroups.map((group) => ({
-                        imageVersionId: group.imageVersionId,
-                        imageId: group.imageId,
-                        segmentIndexStart: group.segmentIndexStart,
-                        segmentIndexEnd: group.segmentIndexEnd,
-                    }))
-                );
-                setMusicVersions(musicVersionItems);
-                setImageVersions(imageVersionItems);
-            } catch (error) {
-                console.error("Failed to load video editor data:", error);
-                toast("Failed to load video editor data", "error");
-            } finally {
-                if (isMounted) {
-                    setIsLoading(false);
-                }
-            }
-        };
-
-        load();
+        isMountedRef.current = true;
         return () => {
-            isMounted = false;
+            isMountedRef.current = false;
         };
+    }, []);
+
+    const loadEditorData = useCallback(async (silent = false) => {
+        if (!silent) {
+            setIsLoading(true);
+        }
+        try {
+            const [videoResponse, musicListResponse, imageListResponse] = await Promise.all([
+                videoApi.get(projectId),
+                musicApi.getList(projectId),
+                imageApi.getList(projectId),
+            ]);
+
+            const musicDetails = await Promise.all(
+                musicListResponse.musicList.map(async (music: Music) => {
+                    const detail = await musicApi.get(projectId, music.id);
+                    return detail;
+                })
+            );
+            const musicVersionItems = musicDetails.flatMap((detail) =>
+                detail.versions.map((version) => ({
+                    ...version,
+                    musicId: detail.music.id,
+                    musicAlias: detail.music.alias,
+                }))
+            );
+
+            const imageDetails = await Promise.all(
+                imageListResponse.images.map(async (image: Image) => {
+                    const detail = await imageApi.get(projectId, image.id);
+                    return detail;
+                })
+            );
+            const imageVersionItems = imageDetails.flatMap((detail) =>
+                detail.versions.map((version) => ({
+                    ...version,
+                    imageId: detail.image.id,
+                }))
+            );
+
+            if (!isMountedRef.current) {
+                return;
+            }
+
+            setVideo(videoResponse.video);
+            setSegments(
+                videoResponse.video.segments.map((segment) => ({
+                    musicVersionId: segment.musicVersionId,
+                    musicId: segment.musicId,
+                    durationSeconds: segment.durationSeconds,
+                }))
+            );
+            setImageGroups(
+                videoResponse.video.imageGroups.map((group) => ({
+                    imageVersionId: group.imageVersionId,
+                    imageId: group.imageId,
+                    segmentIndexStart: group.segmentIndexStart,
+                    segmentIndexEnd: group.segmentIndexEnd,
+                }))
+            );
+            setMusicVersions(musicVersionItems);
+            setImageVersions(imageVersionItems);
+        } catch (error) {
+            console.error("Failed to load video editor data:", error);
+            toast("Failed to load video editor data", "error");
+        } finally {
+            if (!silent && isMountedRef.current) {
+                setIsLoading(false);
+            }
+        }
     }, [projectId]);
+
+    useEffect(() => {
+        loadEditorData();
+    }, [loadEditorData]);
+
+    useEffect(() => {
+        const handleRefresh = () => {
+            loadEditorData(true);
+        };
+        window.addEventListener(EVENTS.REFRESH_PROJECT_MUSIC, handleRefresh);
+        window.addEventListener(EVENTS.REFRESH_PROJECT_IMAGES, handleRefresh);
+        window.addEventListener(EVENTS.MUSIC_LIST_UPDATED, handleRefresh);
+        window.addEventListener(EVENTS.IMAGE_LIST_UPDATED, handleRefresh);
+        return () => {
+            window.removeEventListener(EVENTS.REFRESH_PROJECT_MUSIC, handleRefresh);
+            window.removeEventListener(EVENTS.REFRESH_PROJECT_IMAGES, handleRefresh);
+            window.removeEventListener(EVENTS.MUSIC_LIST_UPDATED, handleRefresh);
+            window.removeEventListener(EVENTS.IMAGE_LIST_UPDATED, handleRefresh);
+        };
+    }, [loadEditorData]);
+
+    useEffect(() => {
+        if (!projectId || (!isRendering && video?.status !== "RENDERING")) {
+            return;
+        }
+        const intervalId = window.setInterval(async () => {
+            try {
+                const response = await videoApi.get(projectId);
+                if (isMountedRef.current) {
+                    setVideo(response.video);
+                }
+            } catch (error) {
+                console.error("Failed to refresh video status:", error);
+            }
+        }, 5000);
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    }, [projectId, video?.status, isRendering]);
 
     const totalDuration = useMemo(
         () => getTotalDurationSeconds(segments),

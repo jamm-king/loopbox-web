@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
+import { EVENTS } from "@/lib/events";
 
 export default function CreateProjectPage() {
     const router = useRouter();
@@ -22,7 +23,8 @@ export default function CreateProjectPage() {
         try {
             await projectApi.create({ title });
             router.push("/");
-            router.refresh();
+            window.dispatchEvent(new Event(EVENTS.REFRESH_PROJECTS));
+            window.dispatchEvent(new Event(EVENTS.REFRESH_SIDEBAR));
         } catch (error) {
             console.error("Failed to create project", error);
             // In a real app, show toast error

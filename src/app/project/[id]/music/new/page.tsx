@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 import { buildCreateMusicRequest } from "@/lib/music-create";
+import { EVENTS } from "@/lib/events";
 
 export default function CreateMusicPage() {
     const router = useRouter();
@@ -26,7 +27,8 @@ export default function CreateMusicPage() {
         try {
             const res = await musicApi.create(projectId, buildCreateMusicRequest(alias));
             router.push(`/project/${projectId}/music/${res.music.id}`);
-            router.refresh();
+            window.dispatchEvent(new Event(EVENTS.REFRESH_PROJECT_MUSIC));
+            window.dispatchEvent(new Event(EVENTS.REFRESH_SIDEBAR));
         } catch (error) {
             console.error("Failed to create music", error);
         } finally {

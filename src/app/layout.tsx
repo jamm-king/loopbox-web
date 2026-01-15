@@ -3,7 +3,6 @@ import { Poppins, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/sidebar";
 import { ToastHost } from "@/components/toast-host";
-import { RefreshOnEvent } from "@/components/refresh-on-event";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -38,7 +37,6 @@ export default function RootLayout({
           </div>
         </div>
         <ToastHost />
-        <RefreshOnEvent eventName="refresh-sidebar" />
       </body>
     </html>
   );

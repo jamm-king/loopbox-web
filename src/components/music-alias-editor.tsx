@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { getStatusBadgeVariant } from "@/lib/status-badge";
 import { Check, Pencil, X } from "lucide-react";
 import { toast } from "@/lib/toast";
+import { EVENTS } from "@/lib/events";
 
 interface MusicAliasEditorProps {
     projectId: string;
@@ -32,7 +33,8 @@ export function MusicAliasEditor({ projectId, music }: MusicAliasEditorProps) {
             const response = await musicApi.update(projectId, music.id, { alias });
             setCurrentAlias(response.music.alias ?? "");
             setIsEditing(false);
-            window.dispatchEvent(new Event("refresh-sidebar"));
+            window.dispatchEvent(new Event(EVENTS.REFRESH_SIDEBAR));
+            window.dispatchEvent(new Event(EVENTS.REFRESH_PROJECT_MUSIC));
             toast("Alias updated", "success");
         } catch (error) {
             console.error("Failed to update music alias:", error);

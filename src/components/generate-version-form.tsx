@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { useRouter } from "next/navigation";
 import { musicApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,10 +13,19 @@ interface GenerateVersionFormProps {
     projectId: string;
     musicId: string;
     isMusicGenerating?: boolean;
+    onStartGenerating?: () => void;
+    onGenerated?: (status: string) => void;
+    onGenerationFailed?: () => void;
 }
 
-export function GenerateVersionForm({ projectId, musicId, isMusicGenerating = false }: GenerateVersionFormProps) {
-    const router = useRouter();
+export function GenerateVersionForm({
+    projectId,
+    musicId,
+    isMusicGenerating = false,
+    onStartGenerating,
+    onGenerated,
+    onGenerationFailed,
+}: GenerateVersionFormProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [provider, setProvider] = useState("SUNO");
     const [mood, setMood] = useState("");
@@ -30,8 +38,9 @@ export function GenerateVersionForm({ projectId, musicId, isMusicGenerating = fa
     const handleGenerate = async (e: FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
+        onStartGenerating?.();
         try {
-            await musicApi.generateVersion(projectId, musicId, {
+            const response = await musicApi.generateVersion(projectId, musicId, {
                 provider,
                 mood: mood || undefined,
                 bpm: bpm ? parseInt(bpm) : undefined,
@@ -40,13 +49,16 @@ export function GenerateVersionForm({ projectId, musicId, isMusicGenerating = fa
                 bass: bass || undefined,
                 beat: beat || undefined,
             });
-            router.refresh();
+            onGenerated?.(response.music.status);
         } catch (error) {
             console.error("Failed to generate version", error);
+            onGenerationFailed?.();
         } finally {
             setIsLoading(false);
         }
     };
+
+    const isGenerating = isLoading || isMusicGenerating;
 
     return (
         <Card>
@@ -76,7 +88,7 @@ export function GenerateVersionForm({ projectId, musicId, isMusicGenerating = fa
                                 placeholder="e.g., Happy, Dark"
                                 value={mood}
                                 onChange={(e) => setMood(e.target.value)}
-                                disabled={isLoading || isMusicGenerating}
+                                disabled={isGenerating}
                             />
                         </div>
                         <div className="space-y-2">
@@ -87,7 +99,7 @@ export function GenerateVersionForm({ projectId, musicId, isMusicGenerating = fa
                                 placeholder="e.g., 120"
                                 value={bpm}
                                 onChange={(e) => setBpm(e.target.value)}
-                                disabled={isLoading || isMusicGenerating}
+                                disabled={isGenerating}
                             />
                         </div>
                     </div>
@@ -98,7 +110,7 @@ export function GenerateVersionForm({ projectId, musicId, isMusicGenerating = fa
                             placeholder="Describe the melody..."
                             value={melody}
                             onChange={(e) => setMelody(e.target.value)}
-                            disabled={isLoading || isMusicGenerating}
+                            disabled={isGenerating}
                         />
                     </div>
                     <div className="space-y-2">
@@ -108,7 +120,7 @@ export function GenerateVersionForm({ projectId, musicId, isMusicGenerating = fa
                             placeholder="Describe the harmony..."
                             value={harmony}
                             onChange={(e) => setHarmony(e.target.value)}
-                            disabled={isLoading || isMusicGenerating}
+                            disabled={isGenerating}
                         />
                     </div>
                     <div className="space-y-2">
@@ -118,7 +130,7 @@ export function GenerateVersionForm({ projectId, musicId, isMusicGenerating = fa
                             placeholder="Describe the bass..."
                             value={bass}
                             onChange={(e) => setBass(e.target.value)}
-                            disabled={isLoading || isMusicGenerating}
+                            disabled={isGenerating}
                         />
                     </div>
                     <div className="space-y-2">
@@ -128,14 +140,14 @@ export function GenerateVersionForm({ projectId, musicId, isMusicGenerating = fa
                             placeholder="Describe the beat..."
                             value={beat}
                             onChange={(e) => setBeat(e.target.value)}
-                            disabled={isLoading || isMusicGenerating}
+                            disabled={isGenerating}
                         />
                     </div>
                 </CardContent>
                 <CardFooter>
-                    <Button type="submit" disabled={isLoading || isMusicGenerating} className="w-full">
-                        {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        {isMusicGenerating ? "Generating..." : "Generate"}
+                    <Button type="submit" disabled={isGenerating} className="w-full">
+                        {isGenerating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        {isGenerating ? "Generating..." : "Generate"}
                     </Button>
                 </CardFooter>
             </form>

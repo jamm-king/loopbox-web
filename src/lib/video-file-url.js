@@ -1,5 +1,8 @@
-const buildVideoFileUrl = (apiBaseUrl, projectId, fileId) => {
-    const suffix = fileId ? `?v=${fileId}` : "";
+const buildVideoFileUrl = (apiBaseUrl, projectId, fileId, userId) => {
+    const params = new URLSearchParams();
+    if (fileId) params.set("v", fileId);
+    if (userId) params.set("userId", userId);
+    const suffix = params.toString() ? `?${params.toString()}` : "";
     return `${apiBaseUrl}/project/${projectId}/video/file${suffix}`;
 };
 
