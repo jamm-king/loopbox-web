@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -11,6 +11,7 @@ import { MusicAliasEditor } from "@/components/music-alias-editor";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AUTH_EVENT_NAME, AUTH_STORAGE_KEY, loadAuthState } from "@/lib/auth";
+import { toast } from "@/lib/toast";
 
 export default function MusicDetailPage() {
     const params = useParams<{ id: string; musicId: string }>();
@@ -22,6 +23,7 @@ export default function MusicDetailPage() {
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isAuthed, setIsAuthed] = useState(false);
+    const previousStatusRef = useRef<string | null>(null);
 
     const refreshMusicDetails = async (silent = false) => {
         if (!projectId || !musicId) return;
@@ -80,6 +82,17 @@ export default function MusicDetailPage() {
             window.clearInterval(intervalId);
         };
     }, [isAuthed, music?.status, projectId, musicId]);
+
+    useEffect(() => {
+        if (!music) {
+            return;
+        }
+        const previousStatus = previousStatusRef.current;
+        if (previousStatus === "GENERATING" && music.status === "IDLE") {
+            toast("Music version completed", "success");
+        }
+        previousStatusRef.current = music.status;
+    }, [music?.status]);
 
     if (!projectId || !musicId) {
         return null;
