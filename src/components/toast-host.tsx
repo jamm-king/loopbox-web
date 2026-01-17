@@ -9,8 +9,8 @@ interface ToastItem extends ToastPayload {
 }
 
 const variantClasses: Record<ToastVariant, string> = {
-    success: "border-green-500/30 bg-green-500/10 text-green-700",
-    error: "border-destructive/30 bg-destructive/10 text-destructive",
+    success: "border-green-600 bg-green-100 text-green-800",
+    error: "border-destructive bg-destructive text-destructive-foreground",
     info: "border-border bg-card text-foreground",
 };
 
@@ -49,7 +49,7 @@ export function ToastHost() {
     }
 
     return (
-        <div className="fixed bottom-6 right-6 z-50 flex w-80 flex-col-reverse gap-2">
+        <div className="fixed bottom-6 right-6 z-50 flex w-80 flex-col gap-2">
             {toasts.map((toast) => (
                 <div
                     key={toast.id}

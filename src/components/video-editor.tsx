@@ -120,6 +120,7 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
     const isDraggingImageVersionRef = useRef(false);
     const [draggingSegmentIndex, setDraggingSegmentIndex] = useState<number | null>(null);
     const [draggingImageGroupIndex, setDraggingImageGroupIndex] = useState<number | null>(null);
+    const previousVideoStatusRef = useRef<Video["status"] | null>(null);
     const musicTimelineRef = useRef<HTMLDivElement | null>(null);
     const imageTimelineRef = useRef<HTMLDivElement | null>(null);
     const segmentsListRef = useRef<HTMLDivElement | null>(null);
@@ -241,6 +242,17 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
             window.clearInterval(intervalId);
         };
     }, [projectId, video?.status, isRendering]);
+
+    useEffect(() => {
+        if (!video) {
+            return;
+        }
+        const previousStatus = previousVideoStatusRef.current;
+        if (previousStatus === "RENDERING" && video.status === "READY") {
+            toast("Video render completed", "success");
+        }
+        previousVideoStatusRef.current = video.status;
+    }, [video?.status]);
 
     const totalDuration = useMemo(
         () => getTotalDurationSeconds(segments),
@@ -799,7 +811,7 @@ export function VideoEditor({ projectId }: VideoEditorProps) {
         try {
             const response = await videoApi.render(projectId);
             setVideo(response.video);
-            toast("Video render completed", "success");
+            toast("Video render requested", "success");
         } catch (error) {
             console.error("Failed to render video:", error);
             toast("Failed to render video", "error");

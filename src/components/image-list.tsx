@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Image, ImageVersion } from "@/lib/api-types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,7 @@ export function ImageList({ projectId, images }: ImageListProps) {
     const [expandedImageIds, setExpandedImageIds] = useState<Set<string>>(new Set());
     const [imageDetails, setImageDetails] = useState<Record<string, { versions: ImageVersion[] }>>({});
     const [loadingVersions, setLoadingVersions] = useState<Set<string>>(new Set());
+    const previousStatusRef = useRef<Record<string, string>>({});
 
     const refreshExpandedImageDetails = useCallback(async () => {
         const expandedIds = Array.from(expandedImageIds);
@@ -63,6 +64,16 @@ export function ImageList({ projectId, images }: ImageListProps) {
             window.removeEventListener(EVENTS.IMAGE_LIST_UPDATED, handleRefresh);
         };
     }, [refreshExpandedImageDetails]);
+
+    useEffect(() => {
+        images.forEach((image) => {
+            const previousStatus = previousStatusRef.current[image.id];
+            if (previousStatus === "GENERATING" && image.status === "IDLE") {
+                toast("Image version completed", "success");
+            }
+            previousStatusRef.current[image.id] = image.status;
+        });
+    }, [images]);
 
     useEffect(() => {
         if (expandedImageIds.size === 0) {
@@ -219,11 +230,7 @@ export function ImageList({ projectId, images }: ImageListProps) {
                                         ) : (
                                             <div className="text-sm text-muted-foreground">No versions yet.</div>
                                         )
-                                    ) : (
-                                        <div className="text-sm text-muted-foreground">
-                                            Expand to see versions
-                                        </div>
-                                    )}
+                                    ) : null}
                                 </div>
                             </CardContent>
                         </Card>

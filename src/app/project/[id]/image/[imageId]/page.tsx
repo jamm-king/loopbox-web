@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getStatusBadgeVariant } from "@/lib/status-badge";
 import { AUTH_EVENT_NAME, AUTH_STORAGE_KEY, loadAuthState } from "@/lib/auth";
+import { toast } from "@/lib/toast";
 
 export default function ImageDetailPage() {
     const params = useParams<{ id: string; imageId: string }>();
@@ -22,6 +23,7 @@ export default function ImageDetailPage() {
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [isAuthed, setIsAuthed] = useState(false);
+    const previousStatusRef = useRef<string | null>(null);
 
     const refreshImageDetails = async (silent = false) => {
         if (!projectId || !imageId) return;
@@ -80,6 +82,17 @@ export default function ImageDetailPage() {
             window.clearInterval(intervalId);
         };
     }, [isAuthed, image?.status, projectId, imageId]);
+
+    useEffect(() => {
+        if (!image) {
+            return;
+        }
+        const previousStatus = previousStatusRef.current;
+        if (previousStatus === "GENERATING" && image.status === "IDLE") {
+            toast("Image version completed", "success");
+        }
+        previousStatusRef.current = image.status;
+    }, [image?.status]);
 
     if (!projectId || !imageId) {
         return null;

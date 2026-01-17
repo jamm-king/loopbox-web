@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Music, MusicVersion } from "@/lib/api-types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ export function MusicList({ projectId, musicList }: MusicListProps) {
     const [expandedMusicIds, setExpandedMusicIds] = useState<Set<string>>(new Set());
     const [musicDetails, setMusicDetails] = useState<Record<string, { versions: MusicVersion[] }>>({});
     const [loadingVersions, setLoadingVersions] = useState<Set<string>>(new Set());
+    const previousStatusRef = useRef<Record<string, string>>({});
 
     const refreshExpandedMusicDetails = useCallback(async () => {
         const expandedIds = Array.from(expandedMusicIds);
@@ -68,6 +69,16 @@ export function MusicList({ projectId, musicList }: MusicListProps) {
             window.removeEventListener(EVENTS.MUSIC_LIST_UPDATED, handleRefresh);
         };
     }, [refreshExpandedMusicDetails]);
+
+    useEffect(() => {
+        musicList.forEach((music) => {
+            const previousStatus = previousStatusRef.current[music.id];
+            if (previousStatus === "GENERATING" && music.status === "IDLE") {
+                toast("Music version completed", "success");
+            }
+            previousStatusRef.current[music.id] = music.status;
+        });
+    }, [musicList]);
 
     useEffect(() => {
         if (expandedMusicIds.size === 0) {
@@ -168,7 +179,7 @@ export function MusicList({ projectId, musicList }: MusicListProps) {
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-semibold tracking-tight">Music</h2>
+                <h2 className="text-2xl font-semibold tracking-tight">Musics</h2>
                 <Link href={`/project/${projectId}/music/new`}>
                     <Button>Create Music</Button>
                 </Link>
@@ -310,11 +321,7 @@ export function MusicList({ projectId, musicList }: MusicListProps) {
                                         ) : (
                                             <div className="text-sm text-muted-foreground">No versions yet.</div>
                                         )
-                                    ) : (
-                                        <div className="text-sm text-muted-foreground">
-                                            Expand to see versions
-                                        </div>
-                                    )}
+                                    ) : null}
                                 </div>
                             </CardContent>
                         </Card>
